@@ -13,6 +13,10 @@ try {
   else if (cmd === 'status') status();
   else throw new Error('usage: bun tools/install.ts install|uninstall|status');
 } catch (e) {
-  console.error((e as Error).message.includes('ENOENT') ? `${(e as Error).message}\nRun \`bun run build\` first.` : (e as Error).message);
+  console.error(
+    (e as Error).message.includes('ENOENT')
+      ? `${(e as Error).message}\nRun \`bun run build\` first.`
+      : (e as Error).message,
+  );
   process.exit(1);
 }

@@ -1,6 +1,15 @@
 // Installing, removing and checking the mod files. Used by `bunx melvor2 install` (files downloaded
 // from a GitHub release) and by `bun run install-mod` in a clone (files built into dist/).
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GAME_DIR, MOD_DIR, MOD_FILES, OVERRIDE_CFG, OVERRIDE_MARKER, REPO_URL } from './paths.ts';
@@ -19,7 +28,8 @@ function overrideIsOurs(): boolean {
 /** Copy the mod files from `sourceDir` into the game's user folder and add override.cfg. */
 export function installFrom(sourceDir: string): void {
   for (const f of MOD_FILES) if (!existsSync(join(sourceDir, f))) throw new Error(`missing ${join(sourceDir, f)}`);
-  if (!existsSync(GAME_DIR)) throw new Error(`Melvor Idle 2 not found at ${GAME_DIR} (set MELVOR2_DIR to your game folder)`);
+  if (!existsSync(GAME_DIR))
+    throw new Error(`Melvor Idle 2 not found at ${GAME_DIR} (set MELVOR2_DIR to your game folder)`);
   if (existsSync(OVERRIDE_CFG) && !overrideIsOurs())
     throw new Error(`${OVERRIDE_CFG} exists and isn't ours. Merge this into it by hand:\n${OVERRIDE}`);
 
@@ -42,7 +52,9 @@ export function installFrom(sourceDir: string): void {
   }
   writeFileSync(OVERRIDE_CFG, OVERRIDE);
   console.log(`  ${OVERRIDE_CFG}`);
-  console.log(restart ? 'Partly installed: close the game and run this again.' : 'Installed. (Re)start Melvor Idle 2 to load it.');
+  console.log(
+    restart ? 'Partly installed: close the game and run this again.' : 'Installed. (Re)start Melvor Idle 2 to load it.',
+  );
 }
 
 /** Download the mod files of release `vX.Y.Z` and install them. */
@@ -54,7 +66,9 @@ export async function installRelease(version: string): Promise<void> {
       const url = `${REPO_URL}/releases/download/v${version}/${f}`;
       const res = await fetch(url);
       if (!res.ok)
-        throw new Error(`${url} → ${res.status}. Is v${version} released? (Or build it yourself: clone the repo, bun run build && bun run install-mod)`);
+        throw new Error(
+          `${url} → ${res.status}. Is v${version} released? (Or build it yourself: clone the repo, bun run build && bun run install-mod)`,
+        );
       await Bun.write(join(dir, f), res);
     }
     installFrom(dir);
@@ -80,7 +94,9 @@ export function uninstall(): void {
 /** What's installed, and the end of each log. */
 export function status(): void {
   console.log(`game dir     ${GAME_DIR}`);
-  console.log(`override.cfg ${existsSync(OVERRIDE_CFG) ? (overrideIsOurs() ? 'installed' : 'present, NOT ours') : 'missing (the mod is off)'}`);
+  console.log(
+    `override.cfg ${existsSync(OVERRIDE_CFG) ? (overrideIsOurs() ? 'installed' : 'present, NOT ours') : 'missing (the mod is off)'}`,
+  );
   console.log(`mod dir      ${MOD_DIR}${existsSync(MOD_DIR) ? '' : ' (missing)'}`);
   for (const f of MOD_FILES) {
     const p = join(MOD_DIR, f);

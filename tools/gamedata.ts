@@ -19,7 +19,10 @@ function findPck(fd: number): number {
   const optSize = hdr.readUInt16LE(20);
   const table = read(fd, pe + 24 + optSize, nsec * 40);
   for (let i = 0; i < nsec; i++) {
-    const name = table.subarray(i * 40, i * 40 + 8).toString('ascii').replace(/\0+$/, '');
+    const name = table
+      .subarray(i * 40, i * 40 + 8)
+      .toString('ascii')
+      .replace(/\0+$/, '');
     if (name === 'pck') return table.readUInt32LE(i * 40 + 20); // PointerToRawData
   }
   const size = fstatSync(fd).size;

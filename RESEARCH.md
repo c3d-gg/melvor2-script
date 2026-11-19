@@ -10,14 +10,14 @@ reload. The working code is in `mod/`; see README.md for how to use it.
 
 ## The game
 
-| | |
-|---|---|
-| Engine | Godot **4.7.2** .NET (`stable.mono.official`), C# on **.NET 10** (self-contained, `data_GamesByMalcs.Melvor2_windows_x86_64/`) |
-| Game logic | `GamesByMalcs.Melvor2.dll` (11.7 MB). Decompiles to ~4,000 readable files; only ~35 (cloud/login, folders `A/ B/ c/`) are obfuscated |
-| Game data | `res://Data/Packages/MelvorBase.json` (15 MB, namespace `MelvorBase`, 137 object types, 1,811 items, 192 enemies) |
-| PCK | embedded in `Melvor2.exe` as PE section `pck` (offset `0x6857c00`, pack format v4), **not encrypted**, no GDScript files |
-| User dir | `%APPDATA%\Games By Malcs\Melvor Idle 2\` (logs, device settings). Saves: `steam\<SteamID64>\saves\save_<guid>.sav` (Brotli + BinaryWriter, unsigned) |
-| Libraries | Nakama + Satori (Heroic Labs), Steamworks.NET, Serilog, SmartFormat |
+|            |                                                                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Engine     | Godot **4.7.2** .NET (`stable.mono.official`), C# on **.NET 10** (self-contained, `data_GamesByMalcs.Melvor2_windows_x86_64/`)                        |
+| Game logic | `GamesByMalcs.Melvor2.dll` (11.7 MB). Decompiles to ~4,000 readable files; only ~35 (cloud/login, folders `A/ B/ c/`) are obfuscated                  |
+| Game data  | `res://Data/Packages/MelvorBase.json` (15 MB, namespace `MelvorBase`, 137 object types, 1,811 items, 192 enemies)                                     |
+| PCK        | embedded in `Melvor2.exe` as PE section `pck` (offset `0x6857c00`, pack format v4), **not encrypted**, no GDScript files                              |
+| User dir   | `%APPDATA%\Games By Malcs\Melvor Idle 2\` (logs, device settings). Saves: `steam\<SteamID64>\saves\save_<guid>.sav` (Brotli + BinaryWriter, unsigned) |
+| Libraries  | Nakama + Satori (Heroic Labs), Steamworks.NET, Serilog, SmartFormat                                                                                   |
 
 ### Regenerating the source and data
 
@@ -55,7 +55,7 @@ There's no `Assembly.Load`, mod folder or plugin hook in the game. Godot gives a
    (`[UnmanagedCallersOnly]`). The fallback is `get_runtime_delegate(NULL)` (the active context); it was never needed.
 4. **Bootstrap** (`mod/bootstrap`). It starts in its own `IsolatedComponentLoadContext`. **The game itself also lives in
    an isolated context** (`IsolatedComponentLoadContext(...GamesByMalcs.Melvor2.dll)`), not the default one. The
-   bootstrap creates a *collectible* context whose `Load` borrows from the game's context (shared types) and loads the
+   bootstrap creates a _collectible_ context whose `Load` borrows from the game's context (shared types) and loads the
    runtime from bytes. That gives hot reload (`runtime.reload` → stop → unload → load the new dll) without a restart.
 5. **C# runtime** (`mod/runtime`): compiled against the installed `GamesByMalcs.Melvor2.dll` + `GodotSharp.dll`
    (Private=false). It runs on Godot's main thread via `SceneTree.ProcessFrame += Pump`. The WebSocket server is
@@ -100,6 +100,7 @@ update them). The runtime is loaded from bytes and can always be replaced.
 
 No instant-actions mode and no gamemodes (`GamemodeSelectionView.cs:113` builds one panel + "Coming soon"; the save
 header's gamemode is hard-coded `"Test"`). Options:
+
 - real time (default): scripts start actions, the game's interval applies;
 - old model: after each `ActionPerformed`, queue a stop, and shorten intervals via the existing
   `GlobalPercentActionInterval` modifier path (interval = `floor((base + flat) * (1 + percent))`), so speed 10 = −90%;
@@ -132,8 +133,8 @@ Since there are no gamemodes yet, scripting has to be opted into per save (keyed
 
 ## What carries over from melvor-script
 
-| Keep | Rewrite |
-|---|---|
+| Keep                                                                                                                                                                                                                                   | Rewrite                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | TypeScript client SDK (`run`, pacing, events, `m.state`), WebSocket JSON-RPC protocol + error codes, token auth, CLI (`init/status/repl/watch`), docs site + generators, release tooling, typed id generation (from `MelvorBase.json`) | game-side runtime (JS → C#: server, RPC, pacing, per-skill adapters, in-game panel), `eval` (C# has no `eval`: a reflection/inspect RPC or Roslyn), the fake-game tests (Melvor 2's `Game` needs the Godot engine) |
 
 Melvor 2 adds Ranching, Hunting and Beastcrafting, and uses a Mastery Guild instead of per-action mastery.
@@ -149,7 +150,7 @@ Melvor 2 adds Ranching, Hunting and Beastcrafting, and uses a Mastery Guild inst
   - Crafting step progress lives on the active recipe (`CreatingRecipe.Health`), which `OnStop` leaves alone.
   - So start → fire → stop per action loses nothing.
 - **Presence never sees it:** `RichPresence/PresenceManager.cs` only sets `PresenceUpdateQueued` on
-  ActionStarted/Stopped and sends the *current* state from its `_Process`, one update in flight at a time. Our
+  ActionStarted/Stopped and sends the _current_ state from its `_Process`, one update in flight at a time. Our
   start/fire/stop happens in one call on the main thread, so by `_Process` the state is "idle" again. Verified: about 50
   scripted actions caused 0 presence-stream events in the game log.
 - **Player clicks:** at frame time (SceneTree.process_frame, before nodes' `_process`), any running non-combat action

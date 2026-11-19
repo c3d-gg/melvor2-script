@@ -59,6 +59,7 @@ Bun extension). `bunx melvor2 status` shows the versions on both sides.
 ## Two ways to play
 
 **Real time (default).** `start(recipe)` repeats like a click until something else starts.
+
 - At most one action switch per second. `start()` waits that out by itself. Faster is pointless in real time, and
   each switch also updates the game's online "N players training this action" counter.
 - Starting the current recipe does nothing.
@@ -91,15 +92,15 @@ bunx melvor2 speed 50      # 1..1000, default 10, shared by all Scripted saves
 `run((m) => ...)` connects and hands you `m`. **An `async` main ends when it resolves**; a plain main (a `setInterval`
 loop) runs until Ctrl+C. Either way, the character keeps doing its last action afterwards.
 
-|              |                                                                                                                                                              |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Live state   | `m.state`: mode, skills, bank, currencies, active action, combat, Scripted Mode. Pushed whenever it changes (max 4/s)                                        |
-| Skills       | `m.skills.<name>`: `.level .xp .xpToNext .active .current` · `await .start(recipe)` (real time) · `await .act(recipe, { count, allowStop })` (Scripted) · `.recipes()` |
-| Pacing       | `m.scripted m.speed m.ready m.cooldown` · `await m.whenReady()` · `m.setScripted({ on, speed })`                                                             |
-| Shortcuts    | `m.count(item)` · `m.gp`                                                                                                                                     |
-| Combat       | `m.combat.fight(area, enemy)` · `.stop()` · `.eat()` · `.state .hp .maxHp`                                                                                   |
-| Events       | `m.on('levelUp' \| 'actionChanged' \| 'modeChanged' \| '*', fn)` · `m.onState(fn)` · `await m.waitFor(s => ...)`                                             |
-| Misc         | `m.stop()` · `m.log(...)` (also in the game log) · `m.loadSave()`                                                                                            |
+|            |                                                                                                                                                                        |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live state | `m.state`: mode, skills, bank, currencies, active action, combat, Scripted Mode. Pushed whenever it changes (max 4/s)                                                  |
+| Skills     | `m.skills.<name>`: `.level .xp .xpToNext .active .current` · `await .start(recipe)` (real time) · `await .act(recipe, { count, allowStop })` (Scripted) · `.recipes()` |
+| Pacing     | `m.scripted m.speed m.ready m.cooldown` · `await m.whenReady()` · `m.setScripted({ on, speed })`                                                                       |
+| Shortcuts  | `m.count(item)` · `m.gp`                                                                                                                                               |
+| Combat     | `m.combat.fight(area, enemy)` · `.stop()` · `.eat()` · `.state .hp .maxHp`                                                                                             |
+| Events     | `m.on('levelUp' \| 'actionChanged' \| 'modeChanged' \| '*', fn)` · `m.onState(fn)` · `await m.waitFor(s => ...)`                                                       |
+| Misc       | `m.stop()` · `m.log(...)` (also in the game log) · `m.loadSave()`                                                                                                      |
 
 **Typed ids** are generated from the game's own data: `Skills`, `Items`, `Enemies`, `CombatAreas`, `AreaEnemies`,
 `Currencies`, and a recipe map per skill (`WoodcuttingRecipes`, `MiningRecipes`, `FishingRecipes`, `SmithingRecipes`,
@@ -112,6 +113,7 @@ Herblore, Beastcrafting. The others answer `UNSUPPORTED` for now.
 `MISSING_ITEMS`, `NOT_FOUND`. There's also a limit of 60 calls per second per script (`RATE_LIMITED`).
 
 Examples in [`examples/`](examples):
+
 - `hello.ts`: read state
 - `gather-until.ts`: real time
 - `scripted-await.ts` and `scripted-loop.ts`: Scripted Mode
@@ -134,6 +136,7 @@ its first start with the mod), and refuses any request carrying an `Origin` head
 ## Working on the mod
 
 From source you need, besides Bun:
+
 - the **.NET 10 SDK**, which can be user-local:
   `dotnet-install.ps1 -Channel 10.0 -InstallDir $env:LOCALAPPDATA\Microsoft\dotnet` (the tools look there; set
   `DOTNET` otherwise)

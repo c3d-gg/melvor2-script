@@ -61,7 +61,10 @@ function readJson<T>(file: string): T | null {
 
 export function init(target: string, packageRoot: string): void {
   const version = readJson<Pkg>(join(packageRoot, 'package.json'))?.version ?? 'X.Y.Z';
-  const hello = readFileSync(join(packageRoot, 'examples', 'hello.ts'), 'utf8').replace('bun examples/hello.ts', 'bun scripts/hello.ts');
+  const hello = readFileSync(join(packageRoot, 'examples', 'hello.ts'), 'utf8').replace(
+    'bun examples/hello.ts',
+    'bun scripts/hello.ts',
+  );
   const files: [string, string][] = [
     ['scripts/hello.ts', hello],
     ['tsconfig.json', TSCONFIG],
@@ -81,15 +84,19 @@ export function init(target: string, packageRoot: string): void {
 
   const pkg = readJson<Pkg>(join(target, 'package.json'));
   const warnings: string[] = [];
-  if (!pkg) warnings.push(`No package.json here. Run \`bun init -y\` first, then \`bun add github:${REPO}#v${version}\`.`);
+  if (!pkg)
+    warnings.push(`No package.json here. Run \`bun init -y\` first, then \`bun add github:${REPO}#v${version}\`.`);
   else {
     if (!pkg.dependencies?.['melvor2-script'] && !pkg.devDependencies?.['melvor2-script'])
       warnings.push(`melvor2-script isn't a dependency yet: bun add github:${REPO}#v${version}`);
-    if (!pkg.devDependencies?.['@types/bun'] && !pkg.dependencies?.['@types/bun']) warnings.push('For types in VS Code: bun add -d @types/bun');
+    if (!pkg.devDependencies?.['@types/bun'] && !pkg.dependencies?.['@types/bun'])
+      warnings.push('For types in VS Code: bun add -d @types/bun');
   }
   const tsconfig = readFileSync(join(target, 'tsconfig.json'), 'utf8');
   if (!/"allowImportingTsExtensions"\s*:\s*true/.test(tsconfig))
-    warnings.push('Your tsconfig.json needs "allowImportingTsExtensions": true (melvor2-script ships TypeScript source).');
+    warnings.push(
+      'Your tsconfig.json needs "allowImportingTsExtensions": true (melvor2-script ships TypeScript source).',
+    );
   for (const w of warnings) console.log(`\n  ! ${w}`);
 
   console.log(`

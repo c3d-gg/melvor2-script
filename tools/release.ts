@@ -70,13 +70,17 @@ export function bumpVersion(version: string, bump: Bump): string {
 }
 
 export function releaseNotes(version: string, commits: Commit[], date: string): string {
-  const line = (c: Commit) => `- ${c.scope ? `**${c.scope}:** ` : ''}${c.subject} ([${c.sha.slice(0, 7)}](${REPO_URL}/commit/${c.sha}))`;
+  const line = (c: Commit) =>
+    `- ${c.scope ? `**${c.scope}:** ` : ''}${c.subject} ([${c.sha.slice(0, 7)}](${REPO_URL}/commit/${c.sha}))`;
   const groups: [string, (c: Commit) => boolean][] = [
     ['⚠ Breaking changes', (c) => c.breaking],
     ['Features', (c) => !c.breaking && c.type === 'feat'],
     ['Fixes', (c) => !c.breaking && c.type === 'fix'],
     ['Performance', (c) => !c.breaking && c.type === 'perf'],
-    ['Other changes', (c) => !c.breaking && !['feat', 'fix', 'perf'].includes(c.type ?? '') && !HIDDEN.has(c.type ?? '')],
+    [
+      'Other changes',
+      (c) => !c.breaking && !['feat', 'fix', 'perf'].includes(c.type ?? '') && !HIDDEN.has(c.type ?? ''),
+    ],
   ];
   const out = [`## [${version}](${REPO_URL}/releases/tag/v${version}) - ${date}`];
   for (const [title, test] of groups) {
@@ -104,7 +108,9 @@ bump may change behaviour). Entries are written by \`bun run release\` from
 function withEntry(existing: string | null, entry: string): string {
   if (!existing) return `${CHANGELOG_HEADER}\n${entry}\n`;
   const at = existing.indexOf('\n## ');
-  return at === -1 ? `${existing.trimEnd()}\n\n${entry}\n` : `${existing.slice(0, at + 1)}${entry}\n\n${existing.slice(at + 1)}`;
+  return at === -1
+    ? `${existing.trimEnd()}\n\n${entry}\n`
+    : `${existing.slice(0, at + 1)}${entry}\n\n${existing.slice(at + 1)}`;
 }
 
 // ---- the release ------------------------------------------------------------------------------
@@ -116,7 +122,9 @@ async function out(cmd: ReturnType<typeof $>): Promise<string> {
 
 async function main() {
   if (!existsSync(join(GAME_DATA_DIR, 'GamesByMalcs.Melvor2.dll')))
-    fail(`Releases are built on a machine with Melvor Idle 2 installed (not found at ${GAME_DATA_DIR}; set MELVOR2_DIR).`);
+    fail(
+      `Releases are built on a machine with Melvor Idle 2 installed (not found at ${GAME_DATA_DIR}; set MELVOR2_DIR).`,
+    );
   const dirty = (await out($`git status --porcelain`)) !== '';
   const branch = await out($`git rev-parse --abbrev-ref HEAD`);
   if (!dryRun) {
@@ -126,7 +134,8 @@ async function main() {
     console.log('(dry run with uncommitted changes: they are not part of the release)');
   }
   await $`git fetch --quiet --tags origin`.quiet().nothrow();
-  if (Number(await out($`git rev-list --count ${'HEAD..origin/main'}`.nothrow())) > 0) fail('main is behind origin/main: pull first.');
+  if (Number(await out($`git rev-list --count ${'HEAD..origin/main'}`.nothrow())) > 0)
+    fail('main is behind origin/main: pull first.');
 
   // (Interpolated so the shell passes the pattern to git instead of expanding it as a glob.)
   const lastTag = (await $`git describe --tags --abbrev=0 --match ${'v[0-9]*'}`.quiet().nothrow().text()).trim();
@@ -147,7 +156,8 @@ async function main() {
   let next: string;
   if (override && /^\d+\.\d+\.\d+$/.test(override)) next = override;
   else if (override) {
-    if (!['major', 'minor', 'patch'].includes(override)) fail(`Unknown bump "${override}" (major, minor, patch or X.Y.Z).`);
+    if (!['major', 'minor', 'patch'].includes(override))
+      fail(`Unknown bump "${override}" (major, minor, patch or X.Y.Z).`);
     next = bumpVersion(current, override as Bump);
   } else if (!lastTag) {
     next = current; // the first release ships the version package.json already has
@@ -161,7 +171,9 @@ async function main() {
   const now = new Date(); // local date: UTC would say tomorrow on an evening release
   const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const notes = releaseNotes(next, commits, date);
-  console.log(`\n${current} → ${next}  (${commits.length} commit${commits.length > 1 ? 's' : ''}${lastTag ? ` since ${lastTag}` : ', first release'})\n`);
+  console.log(
+    `\n${current} → ${next}  (${commits.length} commit${commits.length > 1 ? 's' : ''}${lastTag ? ` since ${lastTag}` : ', first release'})\n`,
+  );
   console.log(notes, '\n');
   if (dryRun) {
     console.log('(dry run: nothing changed)');
@@ -187,7 +199,9 @@ async function main() {
     await $`git checkout -- package.json README.md`.quiet().nothrow();
     if (await out($`git ls-files CHANGELOG.md`)) await $`git checkout -- CHANGELOG.md`.quiet().nothrow();
     else await $`git clean -fq -- CHANGELOG.md`.quiet().nothrow();
-    fail(`Checks failed, release aborted (package.json, README.md and CHANGELOG.md restored).\n${e instanceof Error ? e.message : e}`);
+    fail(
+      `Checks failed, release aborted (package.json, README.md and CHANGELOG.md restored).\n${e instanceof Error ? e.message : e}`,
+    );
   }
 
   const zip = join(DIST, `melvor2-script-v${next}.zip`);
