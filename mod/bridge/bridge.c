@@ -81,12 +81,14 @@ static void find_own_dir(void) {
 
 static void path_in_dir(wchar_t *out, const wchar_t *file) { _snwprintf(out, MAX_PATH, L"%ls\\%ls", g_dir, file); }
 
+/** GetProcAddress as void*, so casting to the real signature doesn't trip gcc's -Wcast-function-type. */
+static void *sym(HMODULE module, const char *name) { return (void *)GetProcAddress(module, name); }
+
 static load_assembly_and_get_function_pointer_fn get_loader(HMODULE hostfxr) {
   hostfxr_initialize_for_runtime_config_fn init_cfg =
-      (hostfxr_initialize_for_runtime_config_fn)GetProcAddress(hostfxr, "hostfxr_initialize_for_runtime_config");
-  hostfxr_get_runtime_delegate_fn get_delegate =
-      (hostfxr_get_runtime_delegate_fn)GetProcAddress(hostfxr, "hostfxr_get_runtime_delegate");
-  hostfxr_close_fn close_fn = (hostfxr_close_fn)GetProcAddress(hostfxr, "hostfxr_close");
+      (hostfxr_initialize_for_runtime_config_fn)sym(hostfxr, "hostfxr_initialize_for_runtime_config");
+  hostfxr_get_runtime_delegate_fn get_delegate = (hostfxr_get_runtime_delegate_fn)sym(hostfxr, "hostfxr_get_runtime_delegate");
+  hostfxr_close_fn close_fn = (hostfxr_close_fn)sym(hostfxr, "hostfxr_close");
   if (!init_cfg || !get_delegate) {
     log_line("hostfxr exports missing (init=%p get_delegate=%p)", (void *)init_cfg, (void *)get_delegate);
     return NULL;
