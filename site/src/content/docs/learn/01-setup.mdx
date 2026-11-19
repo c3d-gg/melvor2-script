@@ -1,0 +1,100 @@
+---
+title: Get set up
+description: Install VS Code, Bun and the mod, turn on Scripted Mode, then run your first script.
+sidebar:
+  label: 1. Get set up
+  order: 1
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Goals from '../../../components/Goals.astro';
+import Install from '../../../components/Install.astro';
+import Snippet from '../../../components/Snippet.astro';
+
+<Goals
+  build={['A folder for your scripts, with the mod installed in the game', 'Your first message from a script']}
+  learn={['What a code editor, a terminal and a package are', 'How to run a script']}
+  time="15 minutes"
+/>
+
+You'll install two tools and the mod, then run a script someone else wrote, to check it all works. Next lesson, you write your own.
+
+You need **Melvor Idle 2 on Steam**, on Windows.
+
+## Install the tools
+
+<Steps>
+
+1. **Install VS Code** from [code.visualstudio.com](https://code.visualstudio.com). It's a code editor: like a word processor, but for code. It colours your code, spots mistakes as you type, and runs your scripts.
+
+2. **Install Bun.** Bun is the program that runs your scripts. You install it from a **terminal**, a window where you type commands instead of clicking. Open the Start menu, type **PowerShell**, and open it. Paste this line and press Enter:
+
+   ```powershell
+   powershell -c "irm bun.sh/install.ps1|iex"
+   ```
+
+   Close the terminal when it's done. To check, open a new one and type `bun --version`: it should print a version number.
+
+3. **Add Bun to VS Code.** In VS Code, click the **Extensions** icon on the left (four squares), search for **Bun**, and install the one by **Oven**. It lets you run scripts by pressing **F5**.
+
+</Steps>
+
+## Make your scripts folder and install the mod
+
+<Steps>
+
+1. In VS Code, open a terminal inside the editor: menu **Terminal → New Terminal**.
+
+2. Paste these lines and press Enter.
+
+   <Install />
+
+   Line by line, they make a folder called `my-melvor2-scripts` and go into it, set it up, and download **melvor2-script**: the **package** (a bundle of code someone wrote for others to use) that lets your scripts talk to the game. `bunx melvor2 install` then puts the mod into Melvor Idle 2, and `bunx melvor2 init` adds a first script.
+
+3. Open the folder: menu **File → Open Folder**, and pick `my-melvor2-scripts` (it's in your home folder, usually `C:\Users\your-name`).
+
+</Steps>
+
+On the left you'll now see the folder's files. `init` made a `scripts` folder with one script in it, `hello.ts`.
+
+## Start the game
+
+<Steps>
+
+1. **Restart Melvor Idle 2** (close it fully first if it was open), and load your character. The mod loads with the game; nothing changes on screen.
+
+2. **Turn on Scripted Mode** for this character. In the VS Code terminal, type:
+
+   ```sh frame="terminal" title="Terminal"
+   bunx melvor2 scripted on
+   ```
+
+   In Scripted Mode, every action happens the moment your script asks for it, then there's a short wait before the next one. That's what the lessons use.
+
+</Steps>
+
+<Aside type="caution" title="Scripted Mode turns idling off">
+In Scripted Mode nothing repeats on its own, so this character won't train skills while you're away. Many people start a new character just for scripts. To go back to normal at any time: `bunx melvor2 scripted off`.
+</Aside>
+
+## Run your first script
+
+Open `scripts/hello.ts` and press **F5**. In the terminal at the bottom of VS Code, it says what your character is doing, a couple of skill levels and your biggest stacks in the bank. The same lines show up in the game's log.
+
+That script was written for you. Here it is, so you know what's coming:
+
+<Snippet file="examples/hello.ts" title="scripts/hello.ts" replace={[['examples/hello.ts', 'scripts/hello.ts']]} />
+
+Don't worry about understanding it yet. By lesson 6 you'll be able to read every line.
+
+<Aside type="caution" title="It says it can't connect?">
+The game has to be running, with the mod installed, before you start a script. If you just installed the mod, close the game completely and start it again. `bunx melvor2 status` in the terminal checks the connection.
+</Aside>
+
+<Aside title="New words">
+- **Script**: a file of instructions for the computer. Yours end in `.ts`, for TypeScript.
+- **Terminal**: a window where you type commands. `bun scripts/hello.ts` typed there does the same as F5.
+- **Package**: code someone else wrote, that you download and use. `melvor2-script` is one.
+</Aside>
+
+Everything works? Then it's time to [write your own](/learn/02-first-script/).

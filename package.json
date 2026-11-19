@@ -29,7 +29,9 @@
     "mod-status": "bun tools/install.ts status",
     "gen:ids": "bun tools/gen-ids.ts",
     "melvor2": "bun src/cli/main.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "docs": "bun tools/api-docs.ts",
+    "docs:site": "bun tools/docs-site.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

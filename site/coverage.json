@@ -1,0 +1,7 @@
+{
+  "$comment": "Docs coverage, checked by `bun run docs:site --check` in CI. Every public call and property must appear in a guide, lesson or concept page, or be listed here. referenceOnly: things only the reference needs to show, with the reason. todo: things still waiting for a guide; this list may only shrink (`bun run docs:site --todo` rewrites it). See site/CONTRIBUTING.md.",
+  "referenceOnly": {
+    "m.hasListeners": "Used by run() to decide when an async script ends; the How it works page explains that behaviour without it."
+  },
+  "todo": []
+}

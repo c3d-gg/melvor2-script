@@ -1,0 +1,156 @@
+---
+title: How it works
+description: How the mod gets into the game, how scripts talk to it, and the two ways actions are paced. Reading state, events and errors.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import Snippet from '../../../components/Snippet.astro';
+
+## The big picture
+
+The mod turns Melvor Idle 2 into a small server that runs on your own computer. Your script connects to it and asks for things: "cut this tree", "eat", "what's in the bank?". The game checks every request against its normal rules, does it, and answers.
+
+```text wrap=false
+ VS Code / Bun                                    Melvor Idle 2
+ scripts/logs.ts ─── WebSocket 127.0.0.1:7338 ──▶ the melvor2-script runtime
+   your code calls m.…                            checks the rules, acts,
+   ◀──────── live state, events, results ──────── pushes state back
+```
+
+Under the hood, the runtime calls the same methods the game's own buttons call (for example the one behind "cut this tree"), so an action from a script is an action like any other.
+
+## How the mod gets in
+
+Melvor Idle 2 is a Godot game written in C#, with no mod loader yet. The mod uses a door Godot leaves open, and every step after that is a small, separate piece:
+
+<ol class="chain">
+  <li>
+    <span class="chain-title">override.cfg<span class="chain-where">next to Melvor2.exe</span></span>
+    <span class="chain-body">Godot reads this file when the game starts, and it can add an "autoload": a script the engine runs at boot. It's the only file the mod adds to the game folder, and the game never writes to it.</span>
+  </li>
+  <li>
+    <span class="chain-title">loader.gd<span class="chain-where">GDScript autoload</span></span>
+    <span class="chain-body">A few lines of GDScript that ask Godot to load a native extension.</span>
+  </li>
+  <li>
+    <span class="chain-title">The bridge<span class="chain-where">melvor_script_bridge.dll</span></span>
+    <span class="chain-body">A tiny GDExtension written in C. It finds the .NET host that's already running the game.</span>
+  </li>
+  <li>
+    <span class="chain-title">hostfxr<span class="chain-where">the game's own .NET host</span></span>
+    <span class="chain-body">The bridge asks it to load our first assembly into the running .NET 10 runtime, next to the game.</span>
+  </li>
+  <li>
+    <span class="chain-title">The bootstrap<span class="chain-where">MelvorScript.Bootstrap.dll</span></span>
+    <span class="chain-body">Loads the runtime in a context it can unload again, sharing the game's types. That's what lets the runtime be swapped without restarting the game.</span>
+  </li>
+  <li>
+    <span class="chain-title">The runtime<span class="chain-where">MelvorScript.Runtime.dll (C#)</span></span>
+    <span class="chain-body">The server. It runs on the game's main thread, reads the game's state, calls the game's own methods, enforces the pacing rules, and pushes state to your scripts.</span>
+  </li>
+  <li>
+    <span class="chain-title">WebSocket on 127.0.0.1:7338<span class="chain-where">token auth</span></span>
+    <span class="chain-body">Only programs on your PC can connect, and only with the token from <code>~/.melvor2-scripting/config.json</code>, which the game writes on its first start. Requests from web pages (anything with an <code>Origin</code> header) are refused.</span>
+  </li>
+</ol>
+
+Everything except `override.cfg` lives in `%APPDATA%\Games By Malcs\Melvor Idle 2\melvor-script\`, with a log for each step (`loader.log`, `bridge.log`, `bootstrap.log`, `runtime.log`). If something doesn't start, `bunx melvor2 mod-status` shows what's installed and the end of every log.
+
+**Turn it off:** delete `override.cfg`, and the game starts exactly as it would without the mod. **Remove it:** `bunx melvor2 uninstall`.
+
+## Two ways to pace actions
+
+An **action** is anything a skill does: a swing at a tree, a catch, a crafting step. How fast actions happen depends on the mode of the save you're playing.
+
+<Tabs syncKey="mode">
+  <TabItem label="Real time">
+    The default. `start(recipe)` begins an action and the game repeats it at its normal speed, exactly as if you'd clicked it. Your script picks what to do and when to switch; the game decides how fast. Idle and offline progress work as usual.
+
+    A script can switch what the character is doing at most **once per second** (`start()` waits that out by itself), and the runtime checks level requirements and materials, which the game itself only checks in its UI. [Real time](/concepts/real-time/) has the details.
+
+  </TabItem>
+  <TabItem label="Scripted Mode">
+    Opt in per save with `bunx melvor2 scripted on`. Every `act()` happens **the moment you ask**, then a **cooldown** starts: the action's normal time divided by a speed you choose (default 10). A one-second swing becomes a 0.1-second cooldown.
+
+    Nothing repeats on its own, so skills make no idle or offline progress: everything comes from your scripts, or from your own clicks, which also become single actions on the same cooldown. [Scripted Mode](/concepts/scripted-mode/) has the details.
+
+  </TabItem>
+</Tabs>
+
+| | Real time | Scripted Mode |
+| --- | --- | --- |
+| Turn it on | Default | `bunx melvor2 scripted on`, per save |
+| Start an action | `start(recipe)`: repeats on its own | `act(recipe)`: once, now |
+| How fast | The game's normal speed | Instant, then time ÷ speed (at least 50 ms) |
+| Pacing rule | One switch per second | Wait for `m.ready` |
+| Idle and offline progress | Yes | No, for skills |
+| Combat | Real time | Real time (turn-based is [planned](/roadmap/)) |
+
+In both modes, the game refuses more than **60 calls a second** from one script (`RATE_LIMITED`).
+
+## Reading the game
+
+`m.state` is a live copy of the game: the bank, every skill's level and XP, currencies, what the character is doing, and combat. The game pushes it whenever something changes, at most four times a second, so reading it is instant and needs no `await`:
+
+<Snippet file="site/snippets/start/events.ts" region="read" />
+
+Because it arrives at most four times a second, the state can be a moment behind right after an action. When you need exact numbers, an action's own result says what it did (see [Scripted Mode](/concepts/scripted-mode/#the-result)). The [m.state reference](/reference/state/) lists everything in it.
+
+A script can also start from the main menu:
+
+<Snippet file="site/snippets/start/events.ts" region="load-save" />
+
+## Reacting to changes
+
+A script doesn't have to loop and check. It can wait for a condition, or run code when something happens.
+
+**Wait for a condition** with `m.waitFor`. It resolves as soon as the function returns true:
+
+<Snippet file="site/snippets/start/events.ts" region="wait-for" />
+
+**Listen for events** with `m.on`: `'levelUp'`, `'actionChanged'` and `'modeChanged'`, or `'*'` for all of them. It returns a function that stops listening. The [events reference](/reference/events/) has their fields.
+
+<Snippet file="site/snippets/start/events.ts" region="on" />
+
+**Follow every update** with `m.onState`:
+
+<Snippet file="site/snippets/start/events.ts" region="on-state" />
+
+## When a call fails
+
+When the game refuses a call, the promise rejects with a `MelvorError`, and its `code` says why. The message explains it in words:
+
+<Snippet file="site/snippets/start/errors.ts" region="errors" />
+
+The ones you'll meet most:
+
+| Code | Means |
+| --- | --- |
+| `LOCKED` | Your level is too low, or an area isn't unlocked yet. |
+| `MISSING_ITEMS` | Not enough materials (or bank space) for a recipe. |
+| `COOLDOWN` | Too soon: a Scripted Mode cooldown, or a second real-time switch within a second. `e.data.readyInMs` says how long is left. |
+| `BUSY` | Scripted Mode: a multi-action `act` is still running. |
+| `UNSUPPORTED` | Not possible here: a skill without actions yet, `start()` in Scripted Mode, `act()` outside it. |
+| `NOT_READY` | No save loaded, still loading, or offline progress is running. |
+
+The [errors reference](/reference/errors/) has every code.
+
+<Aside title="Errors in loop-style scripts">
+A Scripted Mode `act()` you don't `await` (fire and forget, as in a `setInterval` loop) can't throw into your code. Its failure is printed as a warning instead, at most once every 10 seconds for the same error, and the loop keeps going. Errors thrown by your own code still stop the script.
+</Aside>
+
+## Calls `m` doesn't wrap
+
+`m` covers what most scripts need. The [protocol reference](/reference/protocol/) lists every call the runtime understands, and `m.conn.call` sends any of them, typed:
+
+<Snippet file="site/snippets/start/events.ts" region="conn" />
+
+## When a script ends
+
+Every script calls `run((m) => { … })`, which connects, loads the state, and reports errors as `CODE: message`.
+
+- An `async` function ends the script when it returns, unless it left `m.on` or `m.onState` listeners behind.
+- A plain function (say, one that starts a `setInterval` loop) runs until you stop it.
+- **Ctrl+C** in the terminal, or **Stop** in VS Code (Shift+F5), ends a script at any time.
+
+In real time, the character keeps doing its last action afterwards: it's an idle game. To stop it too, call `await m.stop()` before the end. In Scripted Mode nothing repeats, so the character stops with your script.

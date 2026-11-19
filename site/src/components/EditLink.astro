@@ -1,0 +1,46 @@
+---
+// Generated pages (the reference, the changelog) aren't edited directly: point their
+// "Edit page" link at what they're generated from.
+import Default from '@astrojs/starlight/components/EditLink.astro';
+import { Icon } from '@astrojs/starlight/components';
+
+const { id } = Astro.locals.starlightRoute;
+const repo = 'https://github.com/c3d-gg/melvor2-script';
+const file = (path: string) => `${repo}/blob/main/${path}`;
+const fromProtocol = ['reference/state', 'reference/types', 'reference/events', 'reference/errors', 'reference/protocol'];
+const source =
+  id === 'changelog'
+    ? { href: file('CHANGELOG.md'), label: 'Written by the release script from commit messages' }
+    : id === 'reference/ids'
+      ? { href: file('tools/gen-ids.ts'), label: 'The ids are generated from the game data (bun run gen:ids)' }
+      : id === 'reference/cli'
+        ? { href: file('src/cli/main.ts'), label: 'Edit the comment at the top of the CLI this page is made from' }
+        : fromProtocol.includes(id)
+          ? { href: file('src/shared/protocol.ts'), label: 'Edit the doc comments this page is made from' }
+          : id.startsWith('reference')
+            ? { href: file('src/client/melvor.ts'), label: 'Edit the doc comments this page is made from' }
+            : null;
+---
+
+{
+  source ? (
+    <a href={source.href} class="sl-flex print:hidden">
+      <Icon name="pencil" size="1.2em" />
+      {source.label}
+    </a>
+  ) : (
+    <Default />
+  )
+}
+
+<style>
+  a {
+    gap: 0.5rem;
+    align-items: center;
+    text-decoration: none;
+    color: var(--sl-color-gray-3);
+  }
+  a:hover {
+    color: var(--sl-color-white);
+  }
+</style>

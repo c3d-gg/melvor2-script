@@ -1,0 +1,80 @@
+---
+title: Play Melvor Idle 2 by writing code
+description: Play Melvor Idle 2 by writing TypeScript. Your scripts run in VS Code and control your character.
+template: splash
+hero:
+  title: Play Melvor Idle 2 by writing code
+  tagline: Your character does what your TypeScript says. Start an action and let it run like a click, or switch on Scripted Mode, where every swing comes from your code.
+  image:
+    html: |
+      <div class="hero-code" aria-label="An example script">
+        <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>scripts/logs.ts</span></div>
+        <pre><span class="k">import</span> { run, <span class="t">Items</span>, <span class="t">WoodcuttingRecipes</span> } <span class="k">from</span> <span class="s">'melvor2-script'</span>;
+
+      <span class="f">run</span>(<span class="k">async</span> (m) =&gt; {
+        <span class="c">// cut normal trees until the bank has 5000 logs</span>
+        <span class="k">await</span> m.skills.woodcutting.<span class="f">start</span>(<span class="t">WoodcuttingRecipes</span>.NormalTree);
+        <span class="k">await</span> m.<span class="f">waitFor</span>(() =&gt; m.<span class="f">count</span>(<span class="t">Items</span>.NormalLog) &gt;= 5000);
+        m.<span class="f">log</span>(<span class="s">'5000 logs!'</span>);
+      });</pre>
+      </div>
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+<div class="doors">
+  <a class="door" href="/learn/">
+    <span class="door-kicker">New to coding?</span>
+    <span class="door-title">Learn to code by playing</span>
+    <span>A course that starts from nothing. Each lesson teaches one programming idea through something you want in the game: more logs, a fire, a level.</span>
+    <span class="door-go">Start the course →</span>
+  </a>
+  <a class="door" href="/start/quick-start/">
+    <span class="door-kicker">Already write code?</span>
+    <span class="door-title">Quick start</span>
+    <span>Add the package, install the mod with one command, run a script. Then the rules that matter: live state, real time or Scripted Mode, typed ids.</span>
+    <span class="door-go">Five minutes →</span>
+  </a>
+</div>
+
+## What your scripts can do
+
+<CardGrid>
+  <Card title="Gathering and crafting" icon="setting">
+    Woodcutting, Mining and Fishing, plus Smithing, Cooking, Firemaking, Crafting, Fletching, Runecrafting, Herblore and Beastcrafting.
+  </Card>
+  <Card title="Two ways to play" icon="random">
+    **Real time**: start an action and the game repeats it, as if you'd clicked. **Scripted Mode**: every action happens the moment you ask, then a cooldown.
+  </Card>
+  <Card title="Combat" icon="star">
+    Fight any enemy in an area, eat when you're hurt, leave when you're done. Combat runs in real time for now.
+  </Card>
+  <Card title="Live state and events" icon="rocket">
+    The bank, every skill's level, what you're doing and your HP, readable without `await`. React to level-ups and action changes.
+  </Card>
+  <Card title="Typed ids" icon="seti:typescript">
+    Every item, recipe, enemy and area, generated from the game's own data. VS Code completes them and shows the in-game name; a typo fails before the script runs.
+  </Card>
+  <Card title="Your editor, your tools" icon="laptop">
+    Scripts are plain TypeScript run by Bun. Press F5 in VS Code, set breakpoints, use any package you like.
+  </Card>
+</CardGrid>
+
+## Fair by design
+
+Scripts play by the game's rules, not around them. Every level requirement is checked, and so are the materials a recipe needs. In real time the game decides how fast things happen, and a script can switch what it's doing at most once a second. In Scripted Mode each action waits its normal time divided by a speed you choose. Scripted actions never show up in the game's online "players training this action" counter, so other players' numbers stay honest. [How it works](/concepts/how-it-works/) explains the rules.
+
+It's a programming game in the spirit of Screeps, Bitburner and Adventure Land, inside an idle game you might already play. Everything stays on your PC: the mod only accepts connections from it.
+
+## Before you start
+
+<ul class="req-strip">
+  <li><strong>Windows + Steam</strong>The desktop game, from Steam.</li>
+  <li><strong>Game 0.11.6-alpha</strong>The version this release was built and tested on.</li>
+  <li><strong>Bun</strong>Runs your scripts. VS Code is recommended.</li>
+  <li><strong>Early access</strong>No official mod API yet.</li>
+</ul>
+
+<Aside type="caution" title="Game updates can break it">
+Melvor Idle 2 is in early access and has no official mod support yet. The mod reaches into the game's own code, so a game update can stop it working until the mod catches up. If the game starts misbehaving, delete `override.cfg` from the game folder and the game runs exactly as before.
+</Aside>

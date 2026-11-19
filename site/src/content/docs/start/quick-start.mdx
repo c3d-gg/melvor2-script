@@ -1,0 +1,157 @@
+---
+title: Quick start
+description: For people who already write TypeScript. Install the mod, run a script, learn the rules that matter.
+---
+
+import { Aside, CardGrid, LinkCard, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Install from '../../../components/Install.astro';
+import Snippet from '../../../components/Snippet.astro';
+
+For people who already write TypeScript. If you're new to programming, [the course](/learn/) covers the same ground slowly.
+
+<ul class="req-strip">
+  <li><strong>Windows + Steam</strong>Melvor Idle 2, the desktop game.</li>
+  <li><strong>Game 0.11.6-alpha</strong>What this version was tested on.</li>
+  <li><strong>[Bun](https://bun.com)</strong>Runs your scripts.</li>
+</ul>
+
+<Aside type="caution" title="Early access">
+There's no official mod API yet, so the mod hooks into the game itself, and a game update can break it until a new release catches up. Deleting `override.cfg` from the game folder always turns it off.
+</Aside>
+
+## Install
+
+<Tabs syncKey="install">
+  <TabItem label="From GitHub">
+
+<Steps>
+
+1. **Make a scripts folder and install the mod.**
+
+   <Install />
+
+   - `bun add` installs the client package, pinned to a release.
+   - `bunx melvor2 install` downloads the mod files of that same version from the GitHub release. It puts them in `%APPDATA%\Games By Malcs\Melvor Idle 2\melvor-script\` and adds one file next to `Melvor2.exe`: `override.cfg`, which tells the game to load the mod.
+   - `bunx melvor2 init` adds `scripts/hello.ts`, a `tsconfig.json` and VS Code's F5 setup. It never overwrites a file.
+
+2. **Restart Melvor Idle 2** and load a save. On its first start with the mod, the game writes `~/.melvor2-scripting/config.json`, the token your scripts connect with.
+
+3. **Check it's there:** `bunx melvor2 status` prints the mod and game versions.
+
+4. **Run a script:** `bun scripts/hello.ts`, or open it in VS Code and press **F5** (with the Bun extension, `oven.bun-vscode`). It only reads, so it's safe any time.
+
+</Steps>
+
+  </TabItem>
+  <TabItem label="From source">
+
+Building the mod needs the [.NET 10 SDK](https://dotnet.microsoft.com/download) and a mingw **clang** (`winget install MartinStorsjo.LLVM-MinGW.UCRT`), and compiles against your installed game.
+
+<Steps>
+
+1. **Clone and build.**
+
+   ```sh frame="terminal" title="Terminal"
+   git clone https://github.com/c3d-gg/melvor2-script
+   cd melvor2-script
+   bun install
+   bun run build
+   bun run install-mod
+   ```
+
+   `build` compiles the native bridge and the C# runtime into `dist/`; `install-mod` copies them into the game's user folder and adds `override.cfg`.
+
+2. **Restart Melvor Idle 2** and load a save.
+
+3. **Check and run:** `bun run melvor2 status`, then `bun examples/hello.ts`. Put your own scripts in `scripts/` (gitignored).
+
+</Steps>
+
+`bun run dev` rebuilds, reinstalls and hot-reloads the runtime into the running game, no restart needed.
+
+  </TabItem>
+</Tabs>
+
+**Turn it off:** delete `override.cfg` from the game folder. **Remove it:** `bunx melvor2 uninstall`. **Upgrade** a scripts folder to the version on this site:
+
+<Install part="update" />
+
+## Your first script
+
+Real time is the default: start an action and the game repeats it on its own, exactly as if you'd clicked. Your script decides what to do; the game decides how fast.
+
+<Snippet file="site/snippets/start/real-time.ts" title="scripts/logs.ts" />
+
+`m.count()`, `m.skills.woodcutting.level` and the rest read a live copy of the game, so they need no `await`. When the script ends, the character keeps doing its last action: it's an idle game.
+
+## Scripted Mode, in two styles
+
+In **Scripted Mode** every action happens the moment your script asks: one swing, one catch, one crafting step. Then a cooldown runs, the action's normal time divided by a speed you pick. Nothing repeats on its own, so it plays like a programming game. Turn it on for the loaded save:
+
+```sh frame="terminal" title="Terminal"
+bunx melvor2 scripted on
+bunx melvor2 speed 50   # optional: the default is 10, up to 1000
+```
+
+<Tabs syncKey="style-of-script">
+  <TabItem label="Await style">
+    Each `act()` resolves when you may act again, so a plain loop paces itself.
+    <Snippet file="site/snippets/start/await-style.ts" title="scripts/logs.ts" />
+  </TabItem>
+  <TabItem label="Loop style">
+    Look at the game on a timer and act when you're ready, like Adventure Land. Calls you don't await print a warning when they fail instead of stopping the script.
+    <Snippet file="site/snippets/start/loop-style.ts" title="scripts/logs-and-fire.ts" />
+  </TabItem>
+</Tabs>
+
+## The rules that matter
+
+<CardGrid>
+  <LinkCard
+    title="Reads are synchronous"
+    description="m.state mirrors the game, pushed whenever it changes (up to 4 times a second). m.count(), m.gp and the skill levels read from it."
+    href="/concepts/how-it-works/#reading-the-game"
+  />
+  <LinkCard
+    title="Real time: one switch per second"
+    description="start() repeats like a click. Changing what the character does is limited to once a second, and start() waits that out itself."
+    href="/concepts/real-time/"
+  />
+  <LinkCard
+    title="Scripted Mode: act, then cool down"
+    description="act() happens at once, then waits the action's time ÷ speed. Calling it while m.ready is false rejects at once with COOLDOWN."
+    href="/concepts/scripted-mode/"
+  />
+  <LinkCard
+    title="Ids are typed"
+    description="Items.NormalLog, WoodcuttingRecipes.NormalTree, Enemies.Golbin: a typo fails before the script runs. Search them on the ids page."
+    href="/reference/ids/"
+  />
+</CardGrid>
+
+## The CLI
+
+`bunx melvor2` (or `bun run melvor2` in a clone) prints its commands. The ones you'll use most:
+
+| Command | |
+| --- | --- |
+| `status` | The mod and game versions, and which screen the game is on |
+| `scripted on` / `scripted off` | Scripted Mode for the loaded save |
+| `speed 50` | The Scripted Mode speed |
+| `recipes Woodcutting` | What a skill can do, with what's unlocked |
+| `watch` | Print events as they happen |
+
+The [CLI reference](/reference/cli/) has the rest.
+
+## Where next
+
+<CardGrid>
+  <LinkCard title="Skills guide" description="Gathering and crafting, in real time and Scripted Mode." href="/guides/skills/" />
+  <LinkCard title="Combat guide" description="Pick a fight, eat, leave." href="/guides/combat/" />
+  <LinkCard title="How it works" description="The loader, live state, events, errors." href="/concepts/how-it-works/" />
+  <LinkCard
+    title="Examples on GitHub"
+    description="Complete scripts: hello, gather until, Scripted Mode in both styles."
+    href="https://github.com/c3d-gg/melvor2-script/tree/main/examples"
+  />
+</CardGrid>

@@ -1,0 +1,59 @@
+---
+title: Real time
+description: The default mode. start() repeats an action like a click; the rules that keep switching fair.
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Snippet from '../../../components/Snippet.astro';
+
+Real time is how every save plays until you turn on [Scripted Mode](/concepts/scripted-mode/). Your script picks what the character does; the game does it at its normal speed, exactly as if you'd clicked. Idle and offline progress work as usual.
+
+<Snippet file="site/snippets/start/real-time.ts" title="scripts/logs.ts" />
+
+## Starting and switching
+
+`m.skills.<name>.start(recipe)` begins an action, or switches to it, and the game repeats it on its own until something else replaces it. It resolves as soon as the action is running:
+
+<Snippet file="site/snippets/concepts/real-time.ts" region="start" />
+
+**Starting what's already running does nothing.** The game's own buttons toggle (click a tree twice and you stop cutting); `start()` never does, so it's safe to call it again "just in case".
+
+**One switch per second.** Calls that change what the character is doing (`start()` on a different recipe, or `m.combat.fight()`) are limited to one a second. Faster than that is pointless in real time, and each switch also updates the game's online "N players training this action" counter, which other players see. `start()` waits out the rest of that second by itself:
+
+<Snippet file="site/snippets/concepts/real-time.ts" region="switch" />
+
+`m.combat.fight()` doesn't wait: within a second of the last switch it rejects with `COOLDOWN`, and `e.data.readyInMs` says how long is left. The [combat guide](/guides/combat/#the-one-second-rule) shows how to wait it out.
+
+**Stopping:** `m.stop()` stops whatever the character is doing.
+
+<Snippet file="site/snippets/concepts/real-time.ts" region="stop" />
+
+## What the runtime checks for you
+
+The game only checks most requirements in its UI: a button you can't use is greyed out. A script doesn't press buttons, so the runtime does the checks itself:
+
+| Code | When |
+| --- | --- |
+| `LOCKED` | The recipe's requirements aren't met, e.g. Oak Tree below Woodcutting 10. |
+| `MISSING_ITEMS` | A crafting recipe without its materials, or without bank space for the result. |
+| `NOT_FOUND` | No such recipe in that skill. |
+| `UNSUPPORTED` | A skill without actions yet, or a save in Scripted Mode. |
+
+And for every mode: at most **60 calls a second** from one script (`RATE_LIMITED`).
+
+## Loop style in real time
+
+You don't have to `await` in a line. A timer that looks at the game and switches when needed works too. Check `active` first, so it only calls `start()` when that would change something:
+
+<Snippet file="site/snippets/concepts/real-time-loop.ts" title="scripts/cut-and-burn.ts" />
+
+<Aside type="tip" title="The character keeps going">
+When a real-time script ends, the character keeps doing its last action. That's often what you want: start the best thing to do, and let the game idle on it. [`examples/gather-until.ts`](https://github.com/c3d-gg/melvor2-script/blob/main/examples/gather-until.ts) goes back to whatever you were doing before.
+</Aside>
+
+## Next
+
+<CardGrid>
+  <LinkCard title="Scripted Mode" description="Instant actions and a cooldown, for scripts that decide every step." href="/concepts/scripted-mode/" />
+  <LinkCard title="Skills guide" description="Gathering and crafting, with code for both modes." href="/guides/skills/" />
+</CardGrid>

@@ -1,0 +1,117 @@
+---
+title: Scripted Mode
+description: Every action happens the moment you ask, then a cooldown of its normal time ÷ speed. Nothing repeats on its own.
+---
+
+import { Aside, CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+import Snippet from '../../../components/Snippet.astro';
+
+In Scripted Mode, Melvor Idle 2 becomes a programming game. Every action happens **the moment your script asks**, then a **cooldown** runs before the next one: the action's normal time divided by a speed you choose. Nothing repeats on its own, so everything your character does comes from your code. It's the mode the original [melvor-script](https://c3d-gg.github.io/melvor-script/) was built around.
+
+## Turn it on
+
+Scripted Mode is opt-in, **per save**, and remembered for that save. From the terminal, with the save loaded:
+
+```sh frame="terminal" title="Terminal"
+bunx melvor2 scripted on   # this save only ("off" to undo)
+bunx melvor2 speed 50      # one speed for all Scripted saves: 1 to 1000, default 10
+```
+
+Or from a script:
+
+<Snippet file="site/snippets/concepts/scripted.ts" region="turn-on" />
+
+Turning it on stops whatever the character was doing. `m.scripted` and `m.speed` tell your script how the save is set up.
+
+## One action, then a cooldown
+
+`m.skills.<name>.act(recipe)` does the action once, right now, then the cooldown starts:
+
+<div class="timeline" role="img" aria-label="act, cooldown, act, cooldown, act, cooldown">
+  <div class="tl-row">
+    <span class="tl-act"></span><span class="tl-cool">time ÷ speed</span>
+    <span class="tl-act"></span><span class="tl-cool">time ÷ speed</span>
+    <span class="tl-act"></span><span class="tl-cool">time ÷ speed</span>
+  </div>
+  <div class="tl-legend"><span class="l-act">act(): happens at once</span><span class="l-cool">cooldown: no act() allowed (at least 50 ms)</span></div>
+</div>
+
+**One act is one firing of the action's timer**, the same thing that happens once per bar of progress when you play by hand:
+
+| One act is | Base time | Cooldown at speed 10 |
+| --- | --- | --- |
+| One hit on a Normal Tree (3 hits make a log) | 1 s | 100 ms |
+| One swing at Stone (stone 40% of the time) | 1.5 s | 150 ms |
+| One catch at Shallow Pools | 4 to 8 s | 400 to 800 ms |
+| One crafting step (a Stone Sword takes 2) | 2 s | 200 ms |
+| Burning one Normal Log | 4 s | 400 ms |
+
+The cooldown uses the action's real time, so anything that speeds the action up in the game shortens it too. The shortest cooldown is 50 ms, whatever the speed.
+
+<Snippet file="site/snippets/concepts/scripted.ts" region="one" />
+
+## Pacing your script
+
+`m.ready` is true when an `act()` would go through. `m.cooldown` is the milliseconds left, and `await m.whenReady()` waits for it:
+
+<Snippet file="site/snippets/concepts/scripted.ts" region="ready" />
+
+- **An awaited `act()` resolves once you're ready again**, not when the action is done (that's immediate). So `while (…) await act(…)` paces itself.
+- **Calling `act()` while not ready rejects at once** with `COOLDOWN`, or `BUSY` while a multi-action call is running. The client tracks the cooldown, so the call never even reaches the game.
+- A fire-and-forget `act()` that fails prints a warning instead of stopping the script (once every 10 seconds per kind of error), so a loop that checks `m.ready` too loosely doesn't crash.
+
+These two styles both work. Pick whichever fits the script:
+
+<Tabs syncKey="style-of-script">
+  <TabItem label="Await style">
+    Each `act()` resolves when you may act again, so a plain loop paces itself.
+    <Snippet file="examples/scripted-await.ts" />
+  </TabItem>
+  <TabItem label="Loop style">
+    Look at the game on a timer and act when you're ready, like Adventure Land.
+    <Snippet file="examples/scripted-loop.ts" />
+  </TabItem>
+</Tabs>
+
+## Several actions in one call
+
+`{ count: n }` does n actions in one call, spaced by the cooldown inside the game. It resolves when the last one's cooldown is over:
+
+<Snippet file="site/snippets/concepts/scripted.ts" region="count" />
+
+A multi-action call can end early: the materials run out, you click something else in the game, the save is closed, or a script calls `m.stop()`. Then it **throws**, with the partial result in `error.data`. Pass `allowStop: true` to get that result back instead:
+
+<Snippet file="site/snippets/concepts/scripted.ts" region="stopped" />
+
+## The result
+
+Every `act()` resolves with an `ActionResult`, which says exactly what it did. It's more precise than reading `m.state` right after, which can be a moment behind.
+
+| Field | |
+| --- | --- |
+| `completed` | `false` if it stopped early (only seen with `allowStop`) |
+| `actions` | How many actions ran |
+| `xp` | XP gained in the skill |
+| `items` | Bank changes: item id → + or − quantity |
+| `durationMs` | From the first action to the last |
+| `readyInMs` | The cooldown left when the reply was sent |
+| `stopped` | Why it stopped early |
+
+## What else changes
+
+- **No idle or offline progress for skills.** Nothing repeats on its own, so there's nothing to idle: a Scripted save only moves when a script (or you) acts.
+- **Your clicks are single actions too.** Click a tree in the game and you get one hit, on the same cooldown as your scripts. A click during the cooldown waits for it to end.
+- **`start()` is refused** with `UNSUPPORTED`: there's no "repeat on its own" here. Use `act()`.
+- **Combat still runs in real time.** `m.combat.fight()` works as in a normal save. Turn-based combat for Scripted Mode is [next on the roadmap](/roadmap/).
+- **Scripted actions never show in the online counter.** Each act starts, fires and stops inside a single frame, so the game's "N players training this action" counter never sees it.
+
+<Aside title="Turning it off">
+`bunx melvor2 scripted off` (or `m.setScripted({ on: false })`) puts the save back to normal. A running multi-action `act` stops, and from then on `start()` works and the game idles again.
+</Aside>
+
+## Next
+
+<CardGrid>
+  <LinkCard title="Skills guide" description="Gathering and crafting, with code for both modes." href="/guides/skills/" />
+  <LinkCard title="Learn to code" description="The course uses Scripted Mode from lesson 1." href="/learn/" />
+</CardGrid>

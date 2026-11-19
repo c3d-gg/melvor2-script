@@ -1,0 +1,31 @@
+{
+  "$comment": "The roadmap, shown on the docs site's Roadmap page (src/components/Roadmap.astro). On a release, move shipped items from next to available. \"later\" is optional.",
+  "available": [
+    "real-time actions for gathering and crafting skills",
+    "Scripted Mode for skills: instant actions, then a cooldown",
+    "live game state and events",
+    "real-time combat: fight, stop, eat",
+    "typed ids for every item, recipe, enemy and area",
+    "a hot-reload dev loop for working on the mod"
+  ],
+  "next": [
+    {
+      "title": "Turn-based combat in Scripted Mode",
+      "detail": "each call is one round: you hit, the enemy hits, and nothing happens in between."
+    },
+    { "title": "Thieving, Agility and Astrology", "detail": "actions for the remaining active skills." },
+    {
+      "title": "Farming, Ranching and Hunting",
+      "detail": "planting, tending and harvesting, with a farming speed setting for Scripted Mode."
+    },
+    { "title": "The bank, the shop and gear", "detail": "selling items, buying from the shop, equipment and food." },
+    {
+      "title": "An in-game panel",
+      "detail": "the mod's status, connected scripts and a stop button, inside the game."
+    },
+    {
+      "title": "An inspect tool for the REPL",
+      "detail": "poke at the game's state from the terminal while you explore."
+    }
+  ]
+}

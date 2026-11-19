@@ -1,0 +1,32 @@
+---
+/** The roadmap from site/roadmap.json. On a release, move shipped items from `next` to `available`. */
+import roadmap from '../../roadmap.json';
+
+const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
+const later: string[] = (roadmap as { later?: string[] }).later ?? [];
+---
+
+<h2 id="available-now">Available now</h2>
+<ul class="roadmap-available">{roadmap.available.map((a) => <li>{cap(a)}</li>)}</ul>
+<h2 id="coming-next">Coming next, in this order</h2>
+<ol class="roadmap-next">
+  {
+    roadmap.next.map((n) => (
+      <li>
+        <strong>{n.title}:</strong> {n.detail}
+      </li>
+    ))
+  }
+</ol>
+{
+  later.length > 0 && (
+    <>
+      <h2 id="later">Later</h2>
+      <ul>
+        {later.map((l) => (
+          <li>{cap(l)}</li>
+        ))}
+      </ul>
+    </>
+  )
+}

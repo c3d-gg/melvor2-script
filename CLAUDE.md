@@ -53,7 +53,8 @@ A feature isn't finished until the docs are. For every change to the public API 
 2. The guide for that game system shows the new calls, with code in `site/snippets/`. Run the `/docs` skill to find
    and draft what's missing.
 3. `site/roadmap.json` moves a shipped item from `next` to `available`.
-4. `bun run docs:site --check`, `bun run typecheck` and a site build (`cd site && bun run build`) pass.
+4. `bun run docs` (regenerates docs/API.md), `bun run docs:site --check`, `bun run typecheck` and a site build
+   (`cd site && bun run build`) pass.
 
 Where things go and how to write them: `site/CONTRIBUTING.md`.
 

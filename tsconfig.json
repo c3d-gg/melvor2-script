@@ -15,5 +15,5 @@
     "types": ["bun"],
     "paths": { "melvor2-script": ["./src/client/index.ts"] }
   },
-  "include": ["src", "tools", "examples", "scripts"]
+  "include": ["src", "tools", "examples", "scripts", "site/snippets"]
 }

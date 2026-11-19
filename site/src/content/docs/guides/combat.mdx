@@ -1,0 +1,70 @@
+---
+title: Combat
+description: Pick an area and an enemy, fight, eat when you're hurt, leave. Real time in both modes for now.
+sidebar:
+  order: 2
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Snippet from '../../../components/Snippet.astro';
+
+Your script can fight any enemy you could fight by hand: pick an area and an enemy, fight, eat when you're hurt, leave. Every call here is in the [reference](/reference/combat/).
+
+<Aside title="Real time, in both modes">
+Combat runs in real time, exactly as when you click, even on a Scripted Mode save. Turn-based combat for Scripted Mode, where each call is one round, is [next on the roadmap](/roadmap/).
+</Aside>
+
+## Pick a fight
+
+`m.combat.fight(area, enemy)` takes a combat area and an enemy in it, both typed ids (`CombatAreas`, `Enemies`). The fight starts at once and keeps going, kill after kill, until you stop it:
+
+<Snippet file="site/snippets/guides/combat.ts" region="fight" />
+
+Not every enemy lives in every area. `AreaEnemies` lists the valid ones for each area, straight from the game data:
+
+<Snippet file="site/snippets/guides/combat.ts" region="area-enemies" />
+
+The game refuses an enemy that isn't in the area (`BAD_REQUEST`) and an area you haven't unlocked yet (`LOCKED`).
+
+## Watch the fight
+
+Three properties follow the fight, live:
+
+| | |
+| --- | --- |
+| `m.combat.state` | `'Idle'`, `'Spawning'` (waiting for the next enemy) or `'Fighting'` |
+| `m.combat.hp` | Your hitpoints right now |
+| `m.combat.maxHp` | Your maximum hitpoints |
+
+`m.state.combat.area` is the area you're in, and `m.on('levelUp', …)` tells you when a combat skill goes up.
+
+## Stay alive
+
+<Aside type="caution" title="fight() doesn't eat for you">
+The fight goes on until you stop it, however low your HP gets. A script that fights for more than a moment should watch its HP.
+</Aside>
+
+`m.combat.eat()` eats your selected food once and resolves with `{ hp, healed }`. Choosing the food isn't scriptable yet, so pick it in the game first. A handler on `m.onState` runs on every state update, several times a second, which is often enough to catch your HP dropping:
+
+<Snippet file="site/snippets/guides/combat-session.ts" title="scripts/golbins.ts" />
+
+`healed` is 0 when there was nothing to eat, which the script above reports.
+
+## Leave
+
+<Snippet file="site/snippets/guides/combat.ts" region="stop" />
+
+`m.stop()` works too: it stops whatever the character is doing, combat included.
+
+## The one-second rule
+
+Starting a fight changes what the character is doing, so it shares the real-time limit of [one switch per second](/concepts/real-time/#starting-and-switching) with `start()`. Like `start()`, `fight()` waits that out by itself, so switching straight from a skill into combat just takes a moment longer:
+
+<Snippet file="site/snippets/guides/combat.ts" region="cooldown" />
+
+## Everything in the reference
+
+<CardGrid>
+  <LinkCard title="m.combat" href="/reference/combat/" description="fight, stop, eat, state, hp, maxHp" />
+  <LinkCard title="Ids" href="/reference/ids/" description="CombatAreas, Enemies and AreaEnemies" />
+</CardGrid>

@@ -1,0 +1,107 @@
+---
+title: Skills
+description: Gathering and crafting, in real time and in Scripted Mode. Which skills work, picking recipes, materials and steps.
+sidebar:
+  order: 1
+---
+
+import { Aside, CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+import Snippet from '../../../components/Snippet.astro';
+
+Every skill is `m.skills.<name>`: `m.skills.woodcutting`, `m.skills.cooking`, `m.skills.beastcrafting`. Each has its live level and XP; the supported ones also have actions. This guide goes from picking a recipe to gathering, then crafting. The calls are in the [reference](/reference/skills/).
+
+## Which skills work
+
+| | Skills | A recipe is |
+| --- | --- | --- |
+| **Gathering** | Woodcutting, Mining, Fishing | A tree, a rock, a fishing spot |
+| **Crafting** | Smithing, Cooking, Firemaking, Crafting, Fletching, Runecrafting, Herblore, Beastcrafting | Something to make |
+| **Not yet** | Farming, Thieving, Agility, Astrology, Ranching, Hunting | `start` and `act` reject them with `UNSUPPORTED` |
+
+Combat skills (Attack, Strength, Defence, Hitpoints, Ranged, Magic, Prayer, Slayer) level up through [combat](/guides/combat/). Every skill, supported or not, has `level`, `xp` and `xpToNext`. The [roadmap](/roadmap/) says what's coming next.
+
+## Pick a recipe
+
+Recipes are typed ids, one map per skill: `WoodcuttingRecipes.NormalTree`, `MiningRecipes.Stone`, `FishingRecipes.ShallowPools`, `CookingRecipes.Shrimp`. VS Code lists them as you type, and the [id search](/reference/ids/) finds them by name. Melvor 2's ids aren't Melvor 1's, so search rather than guess.
+
+To see what your character can do right now, ask the skill:
+
+<Snippet file="site/snippets/guides/skills.ts" region="recipes" />
+
+`unlocked` means the requirements are met: `start` and `act` would accept it. A locked recipe is refused with `LOCKED`, an unknown one with `NOT_FOUND`.
+
+The skill's own numbers are live, read without `await`:
+
+<Snippet file="site/snippets/guides/skills.ts" region="levels" />
+
+## Gathering
+
+<Tabs syncKey="mode">
+  <TabItem label="Real time">
+    `start()` sets the character going and the game repeats the swing at its normal speed. The script just waits for the result it wants:
+
+    <Snippet file="site/snippets/guides/skills.ts" region="gather-real" />
+
+  </TabItem>
+  <TabItem label="Scripted Mode">
+    Each `act()` is one swing, happening at once, then a cooldown. The loop decides before every swing:
+
+    <Snippet file="site/snippets/guides/skills.ts" region="gather-scripted" />
+
+    Not every swing pays: Stone comes 40% of the time, and a Normal Tree needs 3 hits per log. Check the bank, or the result's `items`, rather than counting swings.
+
+  </TabItem>
+</Tabs>
+
+Fishing works the same way. A fishing recipe is a spot, and each spot has its own catch:
+
+<Snippet file="site/snippets/guides/skills.ts" region="fish" />
+
+## Crafting
+
+Crafting skills take their materials from the bank. Without them (or without bank space for the result), `start` and `act` reject with `MISSING_ITEMS` before the game is asked.
+
+<Tabs syncKey="mode">
+  <TabItem label="Real time">
+    <Snippet file="site/snippets/guides/skills.ts" region="craft-real" />
+  </TabItem>
+  <TabItem label="Scripted Mode">
+    `count` does several actions in one call. If the materials run out first, it throws, unless you pass `allowStop: true`:
+
+    <Snippet file="site/snippets/guides/skills.ts" region="craft-scripted" />
+
+  </TabItem>
+</Tabs>
+
+<Aside type="caution" title="Some recipes take several steps">
+In Scripted Mode, one `act()` is one crafting step, and some recipes take more than one before the item appears:
+
+<Snippet file="site/snippets/guides/skills.ts" region="steps" />
+</Aside>
+
+## Gather, then craft
+
+The classic loop: cut until there are enough logs, burn them, repeat. In Scripted Mode, the whole thing fits in a `setInterval`:
+
+<Snippet file="examples/scripted-loop.ts" />
+
+In real time, [`examples/gather-until.ts`](https://github.com/c3d-gg/melvor2-script/blob/main/examples/gather-until.ts) gathers a set amount and then goes back to what you were doing before, and the [real time page](/concepts/real-time/#loop-style-in-real-time) has a cut-and-burn loop.
+
+## What's running, and stopping
+
+`m.skills.<name>.active` is true while that skill is the character's action, and `current` is the recipe. `m.state.active` lists everything that's running. To stop it all:
+
+<Snippet file="site/snippets/guides/skills.ts" region="stop" />
+
+<Aside type="tip" title="Switching in real time">
+In real time, changing what the character does is limited to once per second. `start()` waits that out by itself, so back-to-back `start()` calls on different skills take about a second each. Starting what's already running is free and doesn't count.
+</Aside>
+
+## Everything in the reference
+
+<CardGrid>
+  <LinkCard title="m.skills" href="/reference/skills/" description="level, xp, start, act, recipes" />
+  <LinkCard title="Results" href="/reference/types/" description="ActionResult, RecipeInfo" />
+  <LinkCard title="Ids" href="/reference/ids/" description="Every recipe of every skill, searchable" />
+  <LinkCard title="Scripted Mode" href="/concepts/scripted-mode/" description="The cooldown, count and allowStop" />
+</CardGrid>

@@ -1,0 +1,27 @@
+---
+/**
+ * The commands that make a scripts folder and install the mod, pinned to the version this site
+ * documents (the version in the root package.json).
+ *
+ *   <Install />                  the whole thing: folder, package, mod, init
+ *   <Install part="update" />    just the two lines that move an existing folder to this version
+ */
+import { Code } from '@astrojs/starlight/components';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+interface Props {
+  part?: 'all' | 'update';
+}
+const { part = 'all' } = Astro.props;
+
+const root = existsSync(resolve(process.cwd(), 'site')) ? process.cwd() : resolve(process.cwd(), '..');
+const { version } = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
+const add = `bun add github:c3d-gg/melvor2-script#v${version}`;
+const lines =
+  part === 'update'
+    ? [add, 'bunx melvor2 install']
+    : ['mkdir my-melvor2-scripts', 'cd my-melvor2-scripts', 'bun init -y', add, 'bunx melvor2 install', 'bunx melvor2 init'];
+---
+
+<Code code={lines.join('\n')} lang="sh" frame="terminal" title="Terminal" />
