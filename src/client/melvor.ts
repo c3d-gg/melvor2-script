@@ -4,23 +4,32 @@ import type { ActionResult, GameEvent, GameState, RecipeInfo, ScriptedStatus, Sk
 
 type SkillKey = Uncapitalize<keyof typeof Skills>;
 
-/** One skill: live level/xp from `m.state`, plus its actions. */
+/**
+ * One skill: live level and XP from `m.state`, plus its actions.
+ *
+ * Actions (`start`, `act`, `recipes`) work for Woodcutting, Mining and Fishing, and for every crafting
+ * skill: Smithing, Cooking, Firemaking, Crafting, Fletching, Runecrafting, Herblore and Beastcrafting.
+ * The other skills reject them with UNSUPPORTED for now; their level and XP still work.
+ */
 export class Skill {
   constructor(
     private m: Melvor,
-    /** e.g. 'MelvorBase:Woodcutting' */
+    /** The skill's id, e.g. 'MelvorBase:Woodcutting' (the same as `Skills.Woodcutting`). */
     readonly id: string,
   ) {}
 
   private get s(): SkillState | undefined {
     return this.m.state.skills?.[this.id];
   }
+  /** Current level (0 until the first state arrives). */
   get level(): number {
     return this.s?.level ?? 0;
   }
+  /** Total XP in this skill. */
   get xp(): number {
     return this.s?.xp ?? 0;
   }
+  /** XP still needed for the next level. */
   get xpToNext(): number {
     return this.s?.xpToNext ?? 0;
   }
@@ -36,20 +45,11 @@ export class Skill {
   /**
    * Start (or switch to) a recipe: a tree, rock, fish, or anything a crafting skill makes. The action
    * then repeats in real time like it does when you click it. Starting the current recipe does nothing.
-   * Waits out the 1 s switch cooldown by itself. Throws LOCKED / MISSING_ITEMS / NOT_FOUND.
+   * Waits out the 1 s switch cooldown by itself. Throws LOCKED / MISSING_ITEMS / NOT_FOUND, and
+   * UNSUPPORTED in Scripted Mode (use `act` there).
    */
   async start(recipe: string): Promise<{ started: boolean; already?: boolean }> {
-    for (;;) {
-      try {
-        return await this.m.conn.call('skill.start', { skill: this.id, recipe });
-      } catch (e) {
-        if (e instanceof MelvorError && e.code === 'COOLDOWN') {
-          await Bun.sleep((e.data as { readyInMs?: number })?.readyInMs ?? 250);
-          continue;
-        }
-        throw e;
-      }
-    }
+    return this.m._switch(() => this.m.conn.call('skill.start', { skill: this.id, recipe }));
   }
 
   /** Everything this skill can do, with `unlocked` = requirements met. */
@@ -65,6 +65,7 @@ export class Skill {
    * Calling it while not ready rejects at once with COOLDOWN (or BUSY), without reaching the game: check
    * `m.ready` in loops. If a multi-action call ends early (out of materials, you clicked something else...)
    * it throws with the partial result in `error.data`, unless you pass `allowStop: true`.
+   * Throws UNSUPPORTED when Scripted Mode is off for this save.
    */
   act(recipe: string, opts: { count?: number; allowStop?: boolean } = {}): Promise<ActionResult> {
     const p = this.m._act(this.id, recipe, opts);
@@ -75,17 +76,31 @@ export class Skill {
 
 type Listener = (e: GameEvent) => void;
 
-/** The game, from a script's point of view. Get one from `run()`. */
+/**
+ * The game, from a script's point of view: its live state, your skills, combat, events and the
+ * Scripted Mode cooldown. `run()` hands you one; every example calls it `m`.
+ */
 export class Melvor {
   /** Live mirror of the game, refreshed whenever it changes (up to 4 times a second). */
   state: GameState = { mode: 'None', saveLoaded: false, offline: false };
+  /**
+   * One object per skill, named like the `Skills` ids but starting lower case: `m.skills.woodcutting`,
+   * `m.skills.mining`, `m.skills.beastcrafting`... Each has its live level and XP, and its actions.
+   */
   readonly skills: Record<SkillKey, Skill>;
   private listeners = new Map<string, Set<Listener>>();
   private stateListeners = new Set<(s: GameState) => void>();
 
-  constructor(readonly conn: Connection) {
+  constructor(
+    /**
+     * The low-level connection. `m.conn.call(method, params)` sends any call from the protocol,
+     * including ones `m` doesn't wrap (yet), e.g. `m.conn.call('skill.recipes', { skill: Skills.Mining })`.
+     */
+    readonly conn: Connection,
+  ) {
     const skills = {} as Record<SkillKey, Skill>;
-    for (const [name, id] of Object.entries(Skills)) skills[(name[0]!.toLowerCase() + name.slice(1)) as SkillKey] = new Skill(this, id);
+    for (const [name, id] of Object.entries(Skills))
+      skills[(name[0]!.toLowerCase() + name.slice(1)) as SkillKey] = new Skill(this, id);
     this.skills = skills;
     conn.onNotification((method, params) => {
       if (method === 'state') {
@@ -104,11 +119,14 @@ export class Melvor {
   private acting = false;
   private warned = new Map<string, number>();
 
-  /** Scripted Mode is on for this save: actions are instant, then a cooldown. Turn it on: `bun run melvor2 scripted on`. */
+  /**
+   * Scripted Mode is on for this save: actions are instant, then a cooldown. Turn it on with
+   * `bunx melvor2 scripted on`, or `m.setScripted({ on: true })`.
+   */
   get scripted(): boolean {
     return this.state.scripted?.on ?? false;
   }
-  /** Scripted Mode speed: cooldown = action time ÷ speed. */
+  /** Scripted Mode speed (1 to 1000, default 10): cooldown = action time ÷ speed, at least 50 ms. */
   get speed(): number {
     return this.state.scripted?.speed ?? 10;
   }
@@ -146,6 +164,18 @@ export class Melvor {
     return result;
   }
 
+  /** @internal Run a call that changes the active action, waiting out the real-time switch limit (COOLDOWN). */
+  async _switch<T>(call: () => Promise<T>): Promise<T> {
+    for (;;) {
+      try {
+        return await call();
+      } catch (e) {
+        if (!(e instanceof MelvorError) || e.code !== 'COOLDOWN') throw e;
+        await Bun.sleep((e.data as { readyInMs?: number } | undefined)?.readyInMs ?? 250);
+      }
+    }
+  }
+
   /** @internal */
   _seedCooldown(readyInMs: number) {
     this.readyAt = performance.now() + readyInMs;
@@ -158,7 +188,10 @@ export class Melvor {
     const now = performance.now();
     if (now - (this.warned.get(key) ?? -Infinity) < 10_000) return;
     this.warned.set(key, now);
-    if (key === 'not-ready') console.warn('[melvor2] act() called while not ready: ignored (check m.ready). Further ones are ignored quietly.');
+    if (key === 'not-ready')
+      console.warn(
+        '[melvor2] act() called while not ready: ignored (check m.ready). Further ones are ignored quietly.',
+      );
     else console.warn(`[melvor2] ${err.code ?? 'error'}: ${err.message ?? err}`);
   }
 
@@ -166,20 +199,30 @@ export class Melvor {
   count(item: string): number {
     return this.state.bank?.[item] ?? 0;
   }
+  /** Gold pieces in the bank. */
   get gp(): number {
     return this.state.currencies?.['MelvorBase:GoldPieces'] ?? 0;
   }
 
-  /** Stop whatever the character is doing. */
+  /** Stop whatever the character is doing, and cancel a running multi-action `act`. */
   stop() {
     return this.conn.call('action.stop');
   }
 
+  /**
+   * Fighting. Combat runs in real time in both modes for now (turn-based Scripted combat is on the
+   * roadmap). Pick a valid area and enemy pair with `AreaEnemies`.
+   */
   readonly combat = (() => {
     const m = this;
     return {
-      /** Fight an enemy in an area (CombatAreas / Enemies ids). Combat runs in real time until you stop it. */
-      fight: (area: string, enemy: string) => m.conn.call('combat.fight', { area, enemy }),
+      /**
+       * Fight an enemy in an area (CombatAreas / Enemies ids). Combat runs in real time until you stop it.
+       * Like `start()`, it waits out the one-switch-per-second limit by itself. Throws BAD_REQUEST if the
+       * enemy isn't in that area and LOCKED if the area isn't unlocked.
+       */
+      fight: (area: string, enemy: string) => m._switch(() => m.conn.call('combat.fight', { area, enemy })),
+      /** Leave combat. */
       stop: () => m.conn.call('combat.stop'),
       /** Eat the selected food once. */
       eat: () => m.conn.call('combat.eat'),
@@ -187,23 +230,29 @@ export class Melvor {
       get state(): string {
         return m.state.combat?.state ?? 'Idle';
       },
+      /** Your hitpoints right now. */
       get hp(): number {
         return m.state.combat?.hp ?? 0;
       },
+      /** Your maximum hitpoints. */
       get maxHp(): number {
         return m.state.combat?.maxHp ?? 0;
       },
     };
   })();
 
-  /** Turn Scripted Mode on/off for the loaded save, or change the speed (all Scripted saves). */
+  /**
+   * Turn Scripted Mode on/off for the loaded save, or change the speed (1 to 1000, shared by all
+   * Scripted saves). Turning it on stops the current action. Same as `bunx melvor2 scripted on` and
+   * `bunx melvor2 speed 50`.
+   */
   async setScripted(opts: { on?: boolean; speed?: number }): Promise<ScriptedStatus> {
     const s = await this.conn.call('scripted.set', opts);
     this.state = { ...this.state, scripted: { on: s.on, speed: s.speed } };
     return s;
   }
 
-  /** From the main menu, load a save (the most recent by default). */
+  /** From the main menu, load a save (the most recent by default). Throws NOT_READY anywhere else. */
   loadSave(id?: string) {
     return this.conn.call('game.loadSave', id ? { id } : {});
   }
@@ -216,7 +265,10 @@ export class Melvor {
   }
 
   /** Listen for game events: 'levelUp', 'actionChanged', 'modeChanged', or '*' for all. Returns an unsubscribe function. */
-  on<T extends GameEvent['type'] | '*'>(type: T, fn: (e: T extends '*' ? GameEvent : Extract<GameEvent, { type: T }>) => void): () => void {
+  on<T extends GameEvent['type'] | '*'>(
+    type: T,
+    fn: (e: T extends '*' ? GameEvent : Extract<GameEvent, { type: T }>) => void,
+  ): () => void {
     let set = this.listeners.get(type);
     if (!set) this.listeners.set(type, (set = new Set()));
     set.add(fn as Listener);
@@ -229,11 +281,13 @@ export class Melvor {
     return () => this.stateListeners.delete(fn);
   }
 
-  /** Resolves once `pred(state)` is true. */
+  /** Resolves once `pred(state)` is true. With `timeoutMs`, rejects with an Error ('waitFor timed out') after that long. */
   waitFor(pred: (s: GameState) => boolean, timeoutMs = Infinity): Promise<GameState> {
     if (pred(this.state)) return Promise.resolve(this.state);
     return new Promise((resolve, reject) => {
-      const timer = Number.isFinite(timeoutMs) ? setTimeout(() => (off(), reject(new Error('waitFor timed out'))), timeoutMs) : null;
+      const timer = Number.isFinite(timeoutMs)
+        ? setTimeout(() => (off(), reject(new Error('waitFor timed out'))), timeoutMs)
+        : null;
       const off = this.onState((s) => {
         if (!pred(s)) return;
         off();
@@ -243,6 +297,7 @@ export class Melvor {
     });
   }
 
+  /** True while an `on` or `onState` listener is registered: `run()` keeps an async script alive while it is. */
   get hasListeners(): boolean {
     return this.stateListeners.size > 0 || [...this.listeners.values()].some((s) => s.size > 0);
   }
@@ -250,11 +305,19 @@ export class Melvor {
 
 /**
  * Connect to the game and run your script.
+ *
  * - `async` main: the script ends when it resolves (unless you registered `on`/`onState` listeners).
  * - plain (sync) main, e.g. a setInterval loop: runs until Ctrl+C.
+ *
  * The character keeps doing its last action after the script ends (it's an idle game).
+ *
+ * An error your script throws (or doesn't catch) stops it and is printed as `CODE: message`.
+ * `opts.name` is how the game's log names the script (default: the file name).
  */
-export async function run(main: (m: Melvor) => unknown | Promise<unknown>, opts: { name?: string } = {}): Promise<void> {
+export async function run(
+  main: (m: Melvor) => unknown | Promise<unknown>,
+  opts: { name?: string } = {},
+): Promise<void> {
   const name = opts.name ?? process.argv[1]?.split(/[\\/]/).pop() ?? 'script';
   let conn: Connection;
   try {
