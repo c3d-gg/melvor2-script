@@ -1,30 +1,75 @@
 #!/usr/bin/env bun
-// melvor2 CLI:  bun run melvor2 <command>
-//   status                    runtime + game info
-//   state                     the current game state (JSON)
-//   reload                    swap the in-game runtime for the freshly installed dll (no game restart)
-//   saves                     saves on this machine
-//   load-save [id]            from the main menu: load a save (latest by default)
-//   recipes <skill>           what a skill can do, e.g. recipes Woodcutting
-//   scripted [on|off]         Scripted Mode for the loaded save (no argument: show status)
-//   speed [n]                 Scripted Mode speed, 1..1000 (no argument: show it)
-//   act <skill> <recipe> [n]  Scripted Mode: n instant actions, e.g. act Mining Stone 10
-//   call <method> [json]      any RPC, e.g. call skill.start '{"skill":"Woodcutting","recipe":"NormalTree"}'
-//   watch                     print state changes and events as they happen
+// melvor2 CLI: `bunx melvor2 <command>` in a project that installed melvor2-script,
+// `bun run melvor2 <command>` in a clone of the repo.
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Connection } from '../client/connection.ts';
+import { init } from './init.ts';
+import { installRelease, status as modStatus, uninstall } from './modfiles.ts';
 
-const [cmd = 'status', ...args] = process.argv.slice(2);
+const HELP = `melvor2 <command>
+
+Setup (no game needed)
+  init                      set up this folder for scripts (scripts/hello.ts, tsconfig, VS Code F5)
+  install                   download this version's mod files from GitHub and install them into Melvor Idle 2
+  uninstall                 remove the mod (override.cfg + the mod folder)
+  mod-status                what's installed, and the end of each log
+
+Game (needs Melvor Idle 2 running with the mod)
+  status                    runtime + game info
+  state                     the current game state (JSON)
+  saves                     saves on this machine
+  load-save [id]            from the main menu: load a save (latest by default)
+  recipes <Skill>           what a skill can do, e.g. recipes Woodcutting
+  scripted [on|off]         Scripted Mode for the loaded save (no argument: show status)
+  speed [n]                 Scripted Mode speed, 1..1000 (no argument: show it)
+  act <Skill> <recipe> [n]  Scripted Mode: n instant actions, e.g. act Mining Stone 10
+  call <method> [json]      any RPC, e.g. call skill.start '{"skill":"Woodcutting","recipe":"NormalTree"}'
+  watch                     print events as they happen
+  reload                    swap the in-game runtime for the freshly installed dll (dev loop, no restart)`;
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const VERSION = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version: string }).version;
+const [cmd = 'help', ...args] = process.argv.slice(2);
+const print = (v: unknown) => console.log(JSON.stringify(v, null, 2));
+
+// ---- commands that don't talk to the game -----------------------------------------------------
+switch (cmd) {
+  case 'help':
+  case '--help':
+  case '-h':
+    console.log(HELP);
+    process.exit(0);
+  case 'init':
+    init(process.cwd(), ROOT);
+    process.exit(0);
+  case 'install':
+    try {
+      await installRelease(args[0]?.replace(/^v/, '') ?? VERSION);
+    } catch (e) {
+      console.error(e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+    process.exit(0);
+  case 'uninstall':
+    uninstall();
+    process.exit(0);
+  case 'mod-status':
+    modStatus();
+    process.exit(0);
+}
+
+// ---- commands that do -------------------------------------------------------------------------
 const conn = await Connection.open().catch((e) => {
   console.error(String(e instanceof Error ? e.message : e));
   process.exit(1);
 });
 
-const print = (v: unknown) => console.log(JSON.stringify(v, null, 2));
-
 try {
   switch (cmd) {
     case 'status':
-      print(await conn.call('runtime.hello', { name: 'cli' }));
+      print({ client: VERSION, ...(await conn.call('runtime.hello', { name: 'cli' })) });
       break;
     case 'state':
       print(await conn.call('state.get'));
@@ -45,7 +90,7 @@ try {
           process.exit(0);
         }
       }
-      console.error('the runtime did not come back; check runtime.log / bootstrap.log (bun run mod-status)');
+      console.error('the runtime did not come back; check the logs (melvor2 mod-status)');
       process.exit(1);
     }
     case 'saves':
@@ -89,7 +134,7 @@ try {
       break;
     }
     default:
-      console.error(`unknown command '${cmd}'`);
+      console.error(`unknown command '${cmd}'\n\n${HELP}`);
       process.exitCode = 1;
   }
 } catch (e) {
