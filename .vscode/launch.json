@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // F5 runs (and debugs) the open script. Needs the Bun extension (oven.bun-vscode).
+      "name": "Run script (current file)",
+      "type": "bun",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
