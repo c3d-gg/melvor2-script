@@ -90,6 +90,7 @@ internal static class GameApi
             ["offline"] = game?.Flags.IsOffline ?? false,
         };
         if (game is null || !game.IsSaveLoaded) return state;
+        state["scripted"] = new JsonObject { ["on"] = Scripted.IsOn(game), ["speed"] = Scripted.Speed };
 
         var skills = new JsonObject();
         foreach (var e in game.LeveledEntities)
@@ -161,7 +162,7 @@ internal static class GameApi
     /// recipe -> active wrapper and a Select method that toggles; crafting skills share
     /// CraftingActionComponent (ActiveRecipes + SelectRecipe + StartCreating).
     /// </summary>
-    private sealed record Adapter(string Dict, string Select, string Current, bool Crafting);
+    internal sealed record Adapter(string Dict, string Select, string Current, bool Crafting);
 
     private static readonly Dictionary<string, Adapter> Gathering = new()
     {
@@ -172,7 +173,7 @@ internal static class GameApi
 
     private static readonly Adapter CraftingAdapter = new("ActiveRecipes", "SelectRecipe", "CreatingRecipe", true);
 
-    private static (object action, Adapter adapter) ActionOf(GameEntity entity)
+    internal static (object action, Adapter adapter) ActionOf(GameEntity entity)
     {
         var action = Prop(entity, "Action") ?? throw new RpcException("UNSUPPORTED", $"{entity.Id} has no action");
         if (Gathering.TryGetValue(entity.Id, out var a)) return (action, a);
@@ -209,19 +210,32 @@ internal static class GameApi
         return list;
     }
 
-    /// <summary>Starts (or switches to) a recipe. Idempotent: starting the current one is a no-op.</summary>
+    /// <summary>Starts (or switches to) a recipe in real time. Idempotent: starting the current one is a no-op.</summary>
     public static JsonObject Start(string skill, string recipeId)
     {
         var game = RequireGame();
+        if (Scripted.IsOn(game))
+            throw new RpcException("UNSUPPORTED", "this save is in Scripted Mode, where nothing repeats on its own: use act() (skill.act) instead");
         var entity = Entity(game, skill);
         var (action, adapter) = ActionOf(entity);
+        bool started = EnsureStarted(entity, action, adapter, recipeId);
+        if (started) Log.Info($"started {entity.Id} -> {recipeId}");
+        return started ? new JsonObject { ["started"] = true } : new JsonObject { ["started"] = false, ["already"] = true };
+    }
+
+    /// <summary>
+    /// Makes <paramref name="recipeId"/> the running recipe of this skill, checking requirements and
+    /// materials first (the game itself only checks those in the UI). Never toggles it off.
+    /// Returns false if it was already running.
+    /// </summary>
+    internal static bool EnsureStarted(GameEntity entity, object action, Adapter adapter, string recipeId)
+    {
         if (!recipeId.Contains(':')) recipeId = "MelvorBase:" + recipeId;
         var (recipe, active) = Entries(action, adapter).FirstOrDefault(e => e.recipe.Id == recipeId);
         if (active is null) throw new RpcException("NOT_FOUND", $"{entity.Id} has no recipe '{recipeId}'");
 
         var started = (bool)(Prop(action, "IsStarted") ?? false);
-        if (started && ReferenceEquals(Prop(action, adapter.Current), active))
-            return new JsonObject { ["started"] = false, ["already"] = true };
+        if (started && ReferenceEquals(Prop(action, adapter.Current), active)) return false;
         if (!RequirementsMet(recipe))
             throw new RpcException("LOCKED", $"{NameOf(recipe)} is locked (requirements not met)");
 
@@ -239,16 +253,19 @@ internal static class GameApi
 
         bool ok = (bool)(Prop(action, "IsStarted") ?? false) && ReferenceEquals(Prop(action, adapter.Current), active);
         if (!ok) throw new RpcException("FAILED", $"the game didn't start {NameOf(recipe)}");
-        Log.Info($"started {entity.Id} -> {recipe.Id}");
-        return new JsonObject { ["started"] = true };
+        return true;
     }
+
+    internal static GamesByMalcs.Melvor2.Components.Inventories.IInventory? BankInventory(Game game) =>
+        Prop(Entity(game, "MelvorBase:Bank"), "Inventory") as GamesByMalcs.Melvor2.Components.Inventories.IInventory;
 
     public static JsonObject StopAll()
     {
         var game = RequireGame();
+        bool hadJob = Scripted.Cancel("stopped by a script");
         bool had = game.ActionManager.HasActiveAction;
         game.ActionManager.TryStopActive();
-        return new JsonObject { ["stopped"] = had, ["active"] = game.ActionManager.HasActiveAction };
+        return new JsonObject { ["stopped"] = had || hadJob, ["active"] = game.ActionManager.HasActiveAction };
     }
 
     // ---- combat ------------------------------------------------------------------------------

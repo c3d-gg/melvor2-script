@@ -34,8 +34,16 @@ internal static class Log
 internal sealed class Config
 {
     public const int DefaultPort = 7338;
+    public const double DefaultSpeed = 10;
     public int Port { get; private set; } = DefaultPort;
     public string Token { get; private set; } = "";
+    /// <summary>Scripted Mode: cooldown = action time ÷ speed (1..1000).</summary>
+    public double Speed { get; set; } = DefaultSpeed;
+    /// <summary>Save GUIDs that play in Scripted Mode.</summary>
+    public HashSet<string> ScriptedSaves { get; } = new();
+    private JsonObject _raw = new();
+    private bool _writable = true;
+
     public static string FilePath =>
         System.Environment.GetEnvironmentVariable("MELVOR2_SCRIPT_CONFIG")
         ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), ".melvor2-scripting", "config.json");
@@ -43,29 +51,42 @@ internal sealed class Config
     public static Config LoadOrCreate()
     {
         var cfg = new Config();
-        JsonObject obj = new();
         try
         {
-            if (File.Exists(FilePath)) obj = JsonNode.Parse(File.ReadAllText(FilePath)) as JsonObject ?? new JsonObject();
+            if (File.Exists(FilePath)) cfg._raw = JsonNode.Parse(File.ReadAllText(FilePath)) as JsonObject ?? new JsonObject();
         }
         catch (Exception e)
         {
-            Log.Error($"bad config file {FilePath}, keeping it and using defaults", e);
+            Log.Error($"bad config file {FilePath}: using defaults and not overwriting it", e);
+            cfg._writable = false;
             cfg.Token = NewToken();
             return cfg;
         }
+        var obj = cfg._raw;
         if (obj["port"] is JsonValue p && p.TryGetValue(out int port)) cfg.Port = port;
         if (obj["token"] is JsonValue t && t.TryGetValue(out string? token) && !string.IsNullOrEmpty(token)) cfg.Token = token;
+        if (obj["speed"] is JsonValue s && s.TryGetValue(out double speed) && speed >= 1 && speed <= 1000) cfg.Speed = speed;
+        if (obj["scriptedSaves"] is JsonArray saves)
+            foreach (var id in saves)
+                if (id is JsonValue v && v.TryGetValue(out string? sid) && sid != null) cfg.ScriptedSaves.Add(sid);
         if (string.IsNullOrEmpty(cfg.Token))
         {
             cfg.Token = NewToken();
-            obj["port"] = cfg.Port;
-            obj["token"] = cfg.Token;
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(FilePath)!);
-            File.WriteAllText(FilePath, obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            cfg.Save();
             Log.Info($"wrote a new token to {FilePath}");
         }
         return cfg;
+    }
+
+    public void Save()
+    {
+        if (!_writable) return;
+        _raw["port"] = Port;
+        _raw["token"] = Token;
+        _raw["speed"] = Speed;
+        _raw["scriptedSaves"] = new JsonArray(ScriptedSaves.Order().Select(s => (JsonNode?)JsonValue.Create(s)).ToArray());
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(FilePath)!);
+        File.WriteAllText(FilePath, _raw.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private static string NewToken() =>

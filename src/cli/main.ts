@@ -6,6 +6,9 @@
 //   saves                     saves on this machine
 //   load-save [id]            from the main menu: load a save (latest by default)
 //   recipes <skill>           what a skill can do, e.g. recipes Woodcutting
+//   scripted [on|off]         Scripted Mode for the loaded save (no argument: show status)
+//   speed [n]                 Scripted Mode speed, 1..1000 (no argument: show it)
+//   act <skill> <recipe> [n]  Scripted Mode: n instant actions, e.g. act Mining Stone 10
 //   call <method> [json]      any RPC, e.g. call skill.start '{"skill":"Woodcutting","recipe":"NormalTree"}'
 //   watch                     print state changes and events as they happen
 import { Connection } from '../client/connection.ts';
@@ -53,6 +56,18 @@ try {
       break;
     case 'recipes':
       print(await conn.call('skill.recipes', { skill: args[0] ?? 'Woodcutting' }));
+      break;
+    case 'scripted': {
+      const on = args[0] === 'on' ? true : args[0] === 'off' ? false : undefined;
+      print(on === undefined ? await conn.call('scripted.status') : await conn.call('scripted.set', { on }));
+      break;
+    }
+    case 'speed':
+      if (!args[0]) print((await conn.call('scripted.status')).speed);
+      else print(await conn.call('scripted.set', { speed: Number(args[0]) }));
+      break;
+    case 'act':
+      print(await conn.call('skill.act', { skill: args[0]!, recipe: args[1]!, count: args[2] ? Number(args[2]) : 1 }));
       break;
     case 'call':
       print(await conn.callRaw(args[0]!, args[1] ? JSON.parse(args[1]) : undefined));

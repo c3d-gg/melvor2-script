@@ -37,8 +37,10 @@ public static class ModEntry
         Log.Init(dir, append: generation > 1);
         Log.Info($"melvor-script runtime {Version} #{generation} (protocol {ProtocolVersion}) starting; game {GameVersion()}", toGame: true);
         MainThread.Install();
-        MainThread.OnFrame(PushState);
         var config = Config.LoadOrCreate();
+        Scripted.Init(config);
+        MainThread.OnFrame(Scripted.OnFrame);
+        MainThread.OnFrame(PushState);
         _server = new WsServer(config, Dispatch);
         try { _server.Start(); }
         catch (Exception e) { Log.Error($"could not listen on port {config.Port} (is another copy running?)", e); }
@@ -83,6 +85,20 @@ public static class ModEntry
             case "skill.recipes": return Main(() => GameApi.Recipes(Str(p, "skill")));
             case "skill.start":
                 return Switch(() => GameApi.Start(Str(p, "skill"), Str(p, "recipe")));
+            case "skill.act":
+            {
+                string skill = Str(p, "skill"), recipe = Str(p, "recipe");
+                int count = p?["count"] is JsonValue c && c.TryGetValue(out int n) ? n : 1;
+                bool allowStop = p?["allowStop"] is JsonValue a && a.TryGetValue(out bool b) && b;
+                return MainThread.Run(() => Scripted.BeginAct(skill, recipe, count, allowStop)).Unwrap();
+            }
+            case "scripted.status": return Main(() => Scripted.Status());
+            case "scripted.set":
+            {
+                bool? on = p?["on"] is JsonValue o && o.TryGetValue(out bool ob) ? ob : null;
+                double? speed = p?["speed"] is JsonValue s && s.TryGetValue(out double sd) ? sd : null;
+                return Main(() => Scripted.Set(on, speed));
+            }
             case "action.stop": return Main(() => GameApi.StopAll());
             case "combat.fight": return Switch(() => GameApi.Fight(Str(p, "area"), Str(p, "enemy")));
             case "combat.stop": return Main(() => GameApi.StopFight());

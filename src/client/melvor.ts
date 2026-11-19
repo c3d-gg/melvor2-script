@@ -1,6 +1,6 @@
 import { Connection, MelvorError } from './connection.ts';
 import { Skills } from '../shared/ids.generated.ts';
-import type { GameEvent, GameState, RecipeInfo, SkillState } from '../shared/protocol.ts';
+import type { ActionResult, GameEvent, GameState, RecipeInfo, ScriptedStatus, SkillState } from '../shared/protocol.ts';
 
 type SkillKey = Uncapitalize<keyof typeof Skills>;
 
@@ -56,6 +56,21 @@ export class Skill {
   recipes(): Promise<RecipeInfo[]> {
     return this.m.conn.call('skill.recipes', { skill: this.id });
   }
+
+  /**
+   * Scripted Mode: do the recipe at once (one hit, catch, craft step...), `count` times, spaced by the
+   * cooldown (action time ÷ speed). Resolves with what happened once you're ready to act again, so
+   * `while (...) await act(x)` paces itself.
+   *
+   * Calling it while not ready rejects at once with COOLDOWN (or BUSY), without reaching the game: check
+   * `m.ready` in loops. If a multi-action call ends early (out of materials, you clicked something else...)
+   * it throws with the partial result in `error.data`, unless you pass `allowStop: true`.
+   */
+  act(recipe: string, opts: { count?: number; allowStop?: boolean } = {}): Promise<ActionResult> {
+    const p = this.m._act(this.id, recipe, opts);
+    p.catch((e) => this.m._unhandled(e)); // a fire-and-forget call warns instead of crashing the loop
+    return p;
+  }
 }
 
 type Listener = (e: GameEvent) => void;
@@ -82,6 +97,69 @@ export class Melvor {
         for (const fn of this.listeners.get('*') ?? []) fn(e);
       }
     });
+  }
+
+  // ---- Scripted Mode pacing ----------------------------------------------------------------
+  private readyAt = 0;
+  private acting = false;
+  private warned = new Map<string, number>();
+
+  /** Scripted Mode is on for this save: actions are instant, then a cooldown. Turn it on: `bun run melvor2 scripted on`. */
+  get scripted(): boolean {
+    return this.state.scripted?.on ?? false;
+  }
+  /** Scripted Mode speed: cooldown = action time ÷ speed. */
+  get speed(): number {
+    return this.state.scripted?.speed ?? 10;
+  }
+  /** Milliseconds until the next action is allowed (0 = now). */
+  get cooldown(): number {
+    return Math.max(0, this.readyAt - performance.now());
+  }
+  /** True when an `act` call would go through right now. */
+  get ready(): boolean {
+    return !this.acting && this.cooldown === 0;
+  }
+  /** Resolves when `m.ready` is true. */
+  async whenReady(): Promise<void> {
+    while (!this.ready) await Bun.sleep(Math.max(this.cooldown, 10));
+  }
+
+  /** @internal */
+  async _act(skill: string, recipe: string, opts: { count?: number; allowStop?: boolean }): Promise<ActionResult> {
+    if (this.acting) throw new MelvorError('BUSY', 'another act() is still running');
+    const wait = this.cooldown;
+    if (wait > 0) throw new MelvorError('COOLDOWN', `ready in ${Math.ceil(wait)} ms`, { readyInMs: wait });
+    this.acting = true;
+    let result: ActionResult;
+    try {
+      result = await this.conn.call('skill.act', { skill, recipe, count: opts.count, allowStop: opts.allowStop });
+    } catch (e) {
+      const left = (e as MelvorError).data as { readyInMs?: number } | undefined;
+      if (typeof left?.readyInMs === 'number') this.readyAt = performance.now() + left.readyInMs;
+      throw e;
+    } finally {
+      this.acting = false;
+    }
+    this.readyAt = performance.now() + result.readyInMs;
+    await Bun.sleep(result.readyInMs); // resolve when the next action is allowed
+    return result;
+  }
+
+  /** @internal */
+  _seedCooldown(readyInMs: number) {
+    this.readyAt = performance.now() + readyInMs;
+  }
+
+  /** @internal Warn about a failed call nobody awaited (once per kind of error every 10 s). */
+  _unhandled(e: unknown) {
+    const err = e as MelvorError;
+    const key = err.code === 'COOLDOWN' || err.code === 'BUSY' ? 'not-ready' : `${err.code}:${err.message}`;
+    const now = performance.now();
+    if (now - (this.warned.get(key) ?? -Infinity) < 10_000) return;
+    this.warned.set(key, now);
+    if (key === 'not-ready') console.warn('[melvor2] act() called while not ready: ignored (check m.ready). Further ones are ignored quietly.');
+    else console.warn(`[melvor2] ${err.code ?? 'error'}: ${err.message ?? err}`);
   }
 
   /** How many of an item are in the bank. */
@@ -117,6 +195,13 @@ export class Melvor {
       },
     };
   })();
+
+  /** Turn Scripted Mode on/off for the loaded save, or change the speed (all Scripted saves). */
+  async setScripted(opts: { on?: boolean; speed?: number }): Promise<ScriptedStatus> {
+    const s = await this.conn.call('scripted.set', opts);
+    this.state = { ...this.state, scripted: { on: s.on, speed: s.speed } };
+    return s;
+  }
 
   /** From the main menu, load a save (the most recent by default). */
   loadSave(id?: string) {
@@ -191,6 +276,7 @@ export async function run(main: (m: Melvor) => unknown | Promise<unknown>, opts:
   });
   await conn.call('runtime.hello', { name });
   m.state = await conn.call('state.get');
+  m._seedCooldown((await conn.call('scripted.status')).readyInMs);
   process.on('SIGINT', () => (end(), process.exit(0)));
   try {
     const result = main(m);

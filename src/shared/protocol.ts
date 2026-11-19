@@ -19,9 +19,42 @@ export type ErrorCode =
   | 'FAILED'
   /** No save loaded, still loading, or offline progress is running. */
   | 'NOT_READY'
-  /** Changing the active action again within 1 s. `data.readyInMs` says how long is left. */
+  /**
+   * Not ready yet. Scripted Mode: the cooldown after the last action hasn't finished. Real time: changing the
+   * active action again within 1 s. `data.readyInMs` says how long is left.
+   */
   | 'COOLDOWN'
-  | 'RATE_LIMITED';
+  /** Scripted Mode: a multi-action `act` is still running. */
+  | 'BUSY'
+  | 'RATE_LIMITED'
+  /** Client-side only: the connection to the game dropped. */
+  | 'DISCONNECTED';
+
+/** What an `act` did (Scripted Mode). */
+export interface ActionResult {
+  /** False when it stopped early (only returned instead of thrown with `allowStop`). */
+  completed: boolean;
+  actions: number;
+  /** XP gained in the acting skill. */
+  xp: number;
+  /** Bank changes, item id -> +/- quantity. */
+  items: Record<string, number>;
+  durationMs: number;
+  /** Cooldown left when the reply was sent. */
+  readyInMs: number;
+  /** Why it stopped early. */
+  stopped?: string;
+}
+
+export interface ScriptedStatus {
+  /** Scripted Mode is on for the loaded save. */
+  on: boolean;
+  speed: number;
+  minCooldownMs: number;
+  readyInMs: number;
+  busy: boolean;
+  save: string | null;
+}
 
 export interface RpcErrorShape {
   code: ErrorCode;
@@ -48,6 +81,8 @@ export interface GameState {
   mode: string;
   saveLoaded: boolean;
   offline: boolean;
+  /** Scripted Mode for the loaded save (see ScriptedStatus). */
+  scripted?: { on: boolean; speed: number };
   /** Keyed by skill id, e.g. 'MelvorBase:Woodcutting'. */
   skills?: Record<string, SkillState>;
   /** Item id -> quantity. */
@@ -99,6 +134,11 @@ export interface Methods {
   'game.loadSave': [{ id?: string }, { loading: string; name: string }];
   'skill.recipes': [{ skill: string }, RecipeInfo[]];
   'skill.start': [{ skill: string; recipe: string }, { started: boolean; already?: boolean }];
+  /** Scripted Mode: `count` instant actions spaced by the cooldown. */
+  'skill.act': [{ skill: string; recipe: string; count?: number; allowStop?: boolean }, ActionResult];
+  'scripted.status': [void, ScriptedStatus];
+  /** `on` applies to the loaded save; `speed` to all Scripted saves. */
+  'scripted.set': [{ on?: boolean; speed?: number }, ScriptedStatus];
   'action.stop': [void, { stopped: boolean; active: boolean }];
   'combat.fight': [{ area: string; enemy: string }, { state: string }];
   'combat.stop': [void, { stopped: boolean }];
