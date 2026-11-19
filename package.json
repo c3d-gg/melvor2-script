@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "description": "Play Melvor Idle 2 by writing TypeScript. A mod runs a local WebSocket server inside the game; your scripts drive it.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/c3d-gg/melvor2-script.git"
+  },
+  "homepage": "https://c3d-gg.github.io/melvor2-script/",
+  "bugs": "https://github.com/c3d-gg/melvor2-script/issues",
   "private": true,
   "type": "module",
   "bin": {
@@ -13,6 +19,10 @@
   },
   "scripts": {
     "build": "bun tools/build.ts",
+    "pack": "bun tools/build.ts --pack",
+    "release": "bun tools/release.ts",
+    "format": "bun fmt",
+    "format:check": "bun fmt --check",
     "dev": "bun tools/build.ts && bun tools/install.ts install && bun src/cli/main.ts reload",
     "install-mod": "bun tools/install.ts install",
     "uninstall-mod": "bun tools/install.ts uninstall",

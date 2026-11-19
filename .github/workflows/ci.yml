@@ -1,0 +1,47 @@
+name: CI
+
+# The C# runtime can't be built here: it compiles against Melvor Idle 2's own assemblies, which
+# can't be redistributed. Releases are built on a machine with the game (`bun run release`).
+# CI checks everything else, and the native bridge compiles with mingw.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4 # keep in step with local Bun: `bun fmt --check` output can change between versions
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun fmt --check
+      - run: bun run docs:site --check # every public call documented and shown in a guide (site/CONTRIBUTING.md)
+
+  bridge:
+    # The GDExtension bridge is plain C: make sure it still compiles for Windows.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq mingw-w64 > /dev/null
+      - run: x86_64-w64-mingw32-gcc -shared -O2 -Wall -Wextra -Werror -static -o melvor_script_bridge.dll mod/bridge/bridge.c
+
+  site:
+    # Builds the docs site, so a broken page fails here rather than at the next release.
+    runs-on: ubuntu-latest
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile
+        working-directory: site
+      - run: bun run build
+        working-directory: site
