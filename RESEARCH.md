@@ -138,6 +138,28 @@ Since there are no gamemodes yet, scripting has to be opted into per save (keyed
 
 Melvor 2 adds Ranching, Hunting and Beastcrafting, and uses a Mastery Guild instead of per-action mastery.
 
+### Scripted Mode internals (mod/runtime/Scripted.cs)
+
+- **Instant action:** `TickTimer` (`Core/TickTimer/TickTimer.cs`) keeps `_ticksLeft` private. Setting it to 1 by
+  reflection and calling `Tick()` raises `Fired` once, so the skill's own handler runs: rewards, XP, mastery, events,
+  bird nests and so on. `WaitTime` (ms) read just before firing is the current, modified interval, which the cooldown
+  is based on.
+- **Stopping keeps progress:**
+  - Woodcutting's `OnStop` only stops the timer; tree health is reset on a cut (`Health.SetMax()`), not on a stop.
+  - Crafting step progress lives on the active recipe (`CreatingRecipe.Health`), which `OnStop` leaves alone.
+  - So start → fire → stop per action loses nothing.
+- **Presence never sees it:** `RichPresence/PresenceManager.cs` only sets `PresenceUpdateQueued` on
+  ActionStarted/Stopped and sends the *current* state from its `_Process`, one update in flight at a time. Our
+  start/fire/stop happens in one call on the main thread, so by `_Process` the state is "idle" again. Verified: about 50
+  scripted actions caused 0 presence-stream events in the game log.
+- **Player clicks:** at frame time (SceneTree.process_frame, before nodes' `_process`), any running non-combat action
+  in a Scripted save was started by the player. It's fired once on the shared cooldown (held with `timer.Pause()`
+  until then) and stopped.
+- **Combat** has no `ActionTimer` (`CombatActionComponent.ActionTimer => null`; only `SpawnTimer`). Player and enemy
+  attacks live in `PlayerComponent`/`EnemyComponent`, so turn-based combat needs those read first. The data already
+  has turn-based effect types (`TurnCountingEffect`, `EndOfTurnDamageEffect`, ...).
+- The active save id is `SaveManager.ActiveSaveId` (private static; read by reflection).
+
 ### Found while building
 
 - **Woodcutting ids aren't Melvor 1's:** `WoodDebris`, `FortressWall1`, `TreantRemains`, ... (22 entries, from
