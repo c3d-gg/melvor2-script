@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The in-game server. Loaded by MelvorScript.Bootstrap into the game's own load context, so it
+    compiles against the installed game's assemblies and uses them directly at runtime.
+  -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>MelvorScript.Runtime</AssemblyName>
+    <RootNamespace>MelvorScript.Runtime</RootNamespace>
+    <NoWarn>$(NoWarn);CS8600;CS8602;CS8604</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="GamesByMalcs.Melvor2">
+      <HintPath>$(GameDataDir)\GamesByMalcs.Melvor2.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="GodotSharp">
+      <HintPath>$(GameDataDir)\GodotSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

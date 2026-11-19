@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Loaded by the native bridge through hostfxr into its own (isolated) load context.
+    It must not reference the game or Godot: its only job is to load MelvorScript.Runtime.dll
+    into the load context the game lives in, so the runtime shares the game's types.
+  -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>MelvorScript.Bootstrap</AssemblyName>
+    <RootNamespace>MelvorScript.Bootstrap</RootNamespace>
+    <!-- hostfxr needs a runtimeconfig.json next to the dll to open a component context. -->
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RollForward>LatestPatch</RollForward>
+  </PropertyGroup>
+</Project>

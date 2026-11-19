@@ -1,0 +1,9 @@
+# LF everywhere (bun fmt writes LF; keeps Windows checkouts from flipping line endings)
+* text=auto eol=lf
+*.svg text eol=lf
+*.zip binary
+
+# Not needed by projects that install the package from GitHub (Bun installs from the archive).
+/site export-ignore
+/.claude export-ignore
+/CLAUDE.md export-ignore
